@@ -1,0 +1,5 @@
+{
+  "name": "NeoOps 2D 智能运维画布",
+  "description": "基于 Vue3/React 设计风格的高性能 2D 运维拓扑编辑系统，具备状态驱动的动态闪缩特效与 AI 架构分析功能。",
+  "requestFramePermissions": []
+}
