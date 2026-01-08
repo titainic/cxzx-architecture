@@ -1,26 +1,18 @@
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import UIOverlay from './components/UIOverlay';
 import Workspace from './components/Workspace';
 import { ServiceNode, Connection, ServiceType, GroupNode } from './types';
 import { suggestLayout } from './geminiService';
 
+const STORAGE_KEY = 'NEOOPS_LAYOUT_DATA';
+
 const App: React.FC = () => {
-  const [nodes, setNodes] = useState<ServiceNode[]>([
-    { id: '1', name: '用户网关', type: ServiceType.GATEWAY, position: { x: 150, y: 250, z: 0 }, status: 'online', lastUpdated: new Date().toISOString() },
-    { id: '2', name: '认证服务', type: ServiceType.SERVER, position: { x: 450, y: 200, z: 0 }, status: 'online', lastUpdated: new Date().toISOString() },
-    { id: '3', name: '产品数据库', type: ServiceType.DATABASE, position: { x: 750, y: 350, z: 0 }, status: 'warning', lastUpdated: new Date().toISOString() },
-  ]);
-
-  const [groups, setGroups] = useState<GroupNode[]>([
-    { id: 'g1', name: '生产集群-A', position: { x: 100, y: 150 }, size: { width: 500, height: 350 }, color: '#38bdf8', status: 'online' }
-  ]);
-
-  const [connections, setConnections] = useState<Connection[]>([
-    { id: 'c1', sourceId: '1', targetId: '2', label: 'HTTP 认证', trafficLoad: 0.4, status: 'online' },
-    { id: 'c2', sourceId: '2', targetId: '3', label: 'SQL 查询', trafficLoad: 0.8, status: 'online' },
-  ]);
+  const [nodes, setNodes] = useState<ServiceNode[]>([]);
+  const [groups, setGroups] = useState<GroupNode[]>([]);
+  const [connections, setConnections] = useState<Connection[]>([]);
+  const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false });
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
@@ -28,6 +20,94 @@ const App: React.FC = () => {
   const [isLocked, setIsLocked] = useState(false);
   const [connectSourceId, setConnectSourceId] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 初始化加载：从 LocalStorage 恢复
+  useEffect(() => {
+    const savedData = localStorage.getItem(STORAGE_KEY);
+    if (savedData) {
+      try {
+        const parsed = JSON.parse(savedData);
+        setNodes(parsed.nodes || []);
+        setGroups(parsed.groups || []);
+        setConnections(parsed.connections || []);
+        showToast("检测到本地存档，已自动加载配置");
+      } catch (e) {
+        console.error("Failed to load layout", e);
+      }
+    } else {
+      // 默认初始数据
+      setNodes([
+        { id: '1', name: '用户网关', type: ServiceType.GATEWAY, position: { x: 150, y: 250, z: 0 }, status: 'online', lastUpdated: new Date().toISOString() },
+        { id: '2', name: '认证服务', type: ServiceType.SERVER, position: { x: 450, y: 200, z: 0 }, status: 'online', lastUpdated: new Date().toISOString() },
+        { id: '3', name: '产品数据库', type: ServiceType.DATABASE, position: { x: 750, y: 350, z: 0 }, status: 'warning', lastUpdated: new Date().toISOString() },
+      ]);
+      setGroups([
+        { id: 'g1', name: '生产集群-A', position: { x: 100, y: 150 }, size: { width: 500, height: 350 }, color: '#38bdf8', status: 'online' }
+      ]);
+      setConnections([
+        { id: 'c1', sourceId: '1', targetId: '2', label: 'HTTP 认证', trafficLoad: 0.4, status: 'online' },
+        { id: 'c2', sourceId: '2', targetId: '3', label: 'SQL 查询', trafficLoad: 0.8, status: 'online' },
+      ]);
+    }
+  }, []);
+
+  const showToast = (message: string) => {
+    setToast({ message, visible: true });
+    setTimeout(() => setToast({ message: '', visible: false }), 3000);
+  };
+
+  const handleSaveLayout = useCallback(() => {
+    const dataToSave = { nodes, groups, connections };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
+    showToast("当前拓扑布局已保存至本地浏览器存储");
+  }, [nodes, groups, connections]);
+
+  // 导出配置文件
+  const handleExportConfig = useCallback(() => {
+    const data = { nodes, groups, connections, timestamp: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `neoops-config-${new Date().getTime()}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    showToast("配置文件已下载至本地");
+  }, [nodes, groups, connections]);
+
+  // 导入配置文件
+  const handleImportConfig = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target?.result as string);
+        if (parsed.nodes && parsed.connections) {
+          setNodes(parsed.nodes);
+          setGroups(parsed.groups || []);
+          setConnections(parsed.connections);
+          showToast("外部配置文件加载成功");
+        }
+      } catch (err) {
+        showToast("无效的配置文件格式");
+      }
+    };
+    reader.readAsText(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, []);
+
+  const toggleLock = useCallback(() => {
+    setIsLocked(prev => !prev);
+    if (!isLocked) {
+      handleSaveLayout();
+      showToast("布局已保存并固化");
+    } else {
+      showToast("编辑模式已恢复");
+    }
+  }, [isLocked, handleSaveLayout]);
 
   const addNode = useCallback((type: ServiceType, name: string, status: 'online' | 'warning' | 'error' = 'online') => {
     if (isLocked) return;
@@ -202,7 +282,25 @@ const App: React.FC = () => {
           animation: signal-flow 3s linear infinite;
           stroke-linecap: round;
         }
+        .toast-enter { transform: translateY(-100%); opacity: 0; }
+        .toast-enter-active { transform: translateY(0); opacity: 1; transition: all 0.3s ease-out; }
       `}</style>
+
+      {/* 系统通知 Toast */}
+      {toast.visible && (
+        <div className="fixed top-6 right-6 z-[100] bg-slate-900 border border-sky-500/50 px-6 py-3 rounded-xl shadow-[0_0_30px_rgba(14,165,233,0.2)] flex items-center gap-4 animate-in fade-in slide-in-from-top-4">
+          <div className="w-2 h-2 rounded-full bg-sky-500 animate-ping"></div>
+          <span className="text-xs font-black text-sky-400 uppercase tracking-widest">{toast.message}</span>
+        </div>
+      )}
+
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleImportConfig} 
+        className="hidden" 
+        accept=".json"
+      />
 
       <Sidebar 
         nodes={nodes} 
@@ -219,6 +317,8 @@ const App: React.FC = () => {
         isAnalyzing={isAnalyzing}
         onAutoLayout={handleAutoLayout}
         isLocked={isLocked}
+        onExport={handleExportConfig}
+        onImport={() => fileInputRef.current?.click()}
       />
       
       <main className="flex-1 relative overflow-hidden bg-[radial-gradient(circle_at_center,_#1e293b_0%,_#020617_100%)]">
@@ -227,7 +327,7 @@ const App: React.FC = () => {
             setMode={setMode} 
             connectSource={getActiveSourceLabel()}
             isLocked={isLocked}
-            setIsLocked={setIsLocked}
+            setIsLocked={toggleLock}
         />
         
         <Workspace 

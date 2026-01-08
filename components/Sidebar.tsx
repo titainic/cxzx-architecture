@@ -18,6 +18,8 @@ interface SidebarProps {
   isAnalyzing: boolean;
   onAutoLayout: (desc: string) => void;
   isLocked: boolean;
+  onExport: () => void;
+  onImport: () => void;
 }
 
 const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
@@ -31,7 +33,7 @@ const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
 };
 
 const Sidebar: React.FC<SidebarProps> = ({ 
-  nodes, groups, connections, selectedId, selectedConnectionId, addNode, addGroup, deleteNode, deleteGroup, deleteConnection, updateConnection, isAnalyzing, onAutoLayout, isLocked
+  nodes, groups, connections, selectedId, selectedConnectionId, addNode, addGroup, deleteNode, deleteGroup, deleteConnection, updateConnection, isAnalyzing, onAutoLayout, isLocked, onExport, onImport
 }) => {
   const [newNodeName, setNewNodeName] = useState('');
   const [newNodeType, setNewNodeType] = useState<ServiceType>(ServiceType.SERVER);
@@ -216,7 +218,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               </div>
             </section>
 
-            <section className="space-y-4 pb-4">
+            <section className="space-y-4 pb-4 border-b border-slate-800/50">
               <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
                 <i className="fas fa-plus-circle text-xs"></i> 资源部署工作台
               </h3>
@@ -287,6 +289,27 @@ const Sidebar: React.FC<SidebarProps> = ({
             </section>
           </>
         )}
+
+        {/* --- 配置管理 --- */}
+        <section className="space-y-4">
+           <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+            <i className="fas fa-file-export text-xs"></i> 核心配置管理
+          </h3>
+          <div className="grid grid-cols-2 gap-2">
+            <button 
+              onClick={onExport}
+              className="bg-slate-900 hover:bg-slate-800 border border-slate-700/50 py-2.5 rounded-lg text-[9px] font-black uppercase tracking-widest text-slate-300 transition-all flex items-center justify-center gap-2"
+            >
+              <i className="fas fa-download"></i> 导出 JSON
+            </button>
+            <button 
+              onClick={onImport}
+              className="bg-slate-900 hover:bg-slate-800 border border-slate-700/50 py-2.5 rounded-lg text-[9px] font-black uppercase tracking-widest text-slate-300 transition-all flex items-center justify-center gap-2"
+            >
+              <i className="fas fa-upload"></i> 导入 JSON
+            </button>
+          </div>
+        </section>
 
         {isLocked && (
           <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl flex items-center gap-4">
