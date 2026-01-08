@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ServiceNode, Connection, ServiceType } from '../types';
 import { SERVICE_ICONS, SERVICE_COLORS } from '../constants';
 
@@ -7,10 +7,12 @@ interface SidebarProps {
   nodes: ServiceNode[];
   connections: Connection[];
   selectedNodeId: string | null;
+  selectedConnectionId: string | null;
   addNode: (type: ServiceType, name: string, status: 'online' | 'warning' | 'error') => void;
   addGroup: (name: string, status: 'online' | 'warning' | 'error') => void;
   deleteNode: (id: string) => void;
   deleteConnection: (id: string) => void;
+  updateConnection: (id: string, updates: Partial<Connection>) => void;
   isAnalyzing: boolean;
   onAutoLayout: (desc: string) => void;
   isLocked: boolean;
@@ -27,7 +29,7 @@ const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
 };
 
 const Sidebar: React.FC<SidebarProps> = ({ 
-  nodes, connections, selectedNodeId, addNode, addGroup, deleteNode, deleteConnection, isAnalyzing, onAutoLayout, isLocked
+  nodes, connections, selectedNodeId, selectedConnectionId, addNode, addGroup, deleteNode, deleteConnection, updateConnection, isAnalyzing, onAutoLayout, isLocked
 }) => {
   const [newNodeName, setNewNodeName] = useState('');
   const [newNodeType, setNewNodeType] = useState<ServiceType>(ServiceType.SERVER);
@@ -35,13 +37,13 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [aiPrompt, setAiPrompt] = useState('');
 
   const selectedNode = nodes.find(n => n.id === selectedNodeId);
+  const selectedConnection = connections.find(c => c.id === selectedConnectionId);
 
-  // 获取可用于手动部署的节点类型列表（排除容器类型，因为容器有专门的部署按钮）
   const deployableTypes = Object.values(ServiceType).filter(t => t !== ServiceType.CONTAINER);
 
   return (
-    <aside className="w-80 border-r border-slate-800 flex flex-col bg-slate-950/80 backdrop-blur-2xl z-10 transition-all shadow-2xl">
-      <div className="p-6 border-b border-slate-800/50 bg-slate-900/20">
+    <aside className="w-80 border-r border-slate-800 flex flex-col bg-slate-950/95 backdrop-blur-3xl z-10 transition-all shadow-2xl">
+      <div className="p-6 border-b border-slate-800/50 bg-slate-900/40">
         <h1 className="text-2xl font-black bg-gradient-to-r from-sky-400 via-indigo-400 to-sky-500 bg-clip-text text-transparent tracking-tighter">NEOOPS</h1>
         <div className="flex items-center gap-2 mt-1">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -49,111 +51,201 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-5 space-y-8 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto p-5 space-y-8 custom-scrollbar scroll-smooth">
+        
+        {/* --- 动态审查区 (只有选中时出现，但不会顶掉其他工具) --- */}
+        {(selectedNode || selectedConnection) && (
+          <div className="animate-in fade-in slide-in-from-top-4 duration-300">
+             {selectedNode && (
+                <section className="bg-gradient-to-br from-indigo-950/40 to-slate-900/60 p-4 rounded-2xl border border-sky-500/30 shadow-2xl relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                     <i className="fas fa-info-circle text-sky-500/40"></i>
+                  </div>
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <p className="text-[8px] text-sky-500 font-black uppercase tracking-[0.2em] mb-1">Inspector // 实例审查</p>
+                      <h4 className="font-black text-sm text-white truncate max-w-[180px]">{selectedNode.name}</h4>
+                    </div>
+                    <div className={`w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-sm shadow-inner border border-slate-800`} style={{ color: SERVICE_COLORS[selectedNode.type] }}>
+                       <i className={`fas ${SERVICE_ICONS[selectedNode.type]}`}></i>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2 text-[9px] border-t border-slate-800/50 pt-3">
+                     <div className="flex flex-col">
+                        <span className="text-slate-500 font-bold uppercase mb-1">类型</span>
+                        <span className="text-slate-300">{SERVICE_TYPE_LABELS[selectedNode.type]}</span>
+                     </div>
+                     <div className="flex flex-col items-end">
+                        <span className="text-slate-500 font-bold uppercase mb-1">健康度</span>
+                        <span className={`font-black ${selectedNode.status === 'online' ? 'text-emerald-400' : selectedNode.status === 'warning' ? 'text-amber-400' : 'text-rose-400'}`}>
+                           {selectedNode.status === 'online' ? '100%' : selectedNode.status === 'warning' ? '65%' : '0%'}
+                        </span>
+                     </div>
+                  </div>
+
+                  {!isLocked && (
+                    <button 
+                      onClick={() => deleteNode(selectedNode.id)} 
+                      className="w-full mt-4 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest border border-rose-500/20 transition-all"
+                    >
+                      Terminate // 销毁实例
+                    </button>
+                  )}
+                </section>
+             )}
+
+             {selectedConnection && (
+                <section className="bg-gradient-to-br from-slate-900 to-slate-950 p-4 rounded-2xl border border-sky-500/30 shadow-2xl space-y-4">
+                  <p className="text-[8px] text-sky-500 font-black uppercase tracking-[0.2em]">Link Editor // 链路编辑</p>
+                  
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-[8px] text-slate-500 font-bold uppercase">链路标识</label>
+                      <input 
+                        type="text" 
+                        className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs text-white outline-none focus:border-sky-500/50"
+                        value={selectedConnection.label}
+                        onChange={(e) => updateConnection(selectedConnection.id, { label: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                       <label className="text-[8px] text-slate-500 font-bold uppercase">链路模拟状态</label>
+                       <div className="grid grid-cols-3 gap-1 bg-slate-900/50 p-1 rounded-lg">
+                         {(['online', 'warning', 'error'] as const).map(s => (
+                           <button 
+                            key={s}
+                            onClick={() => updateConnection(selectedConnection.id, { status: s })}
+                            className={`py-1 rounded text-[8px] font-black uppercase transition-all ${
+                              selectedConnection.status === s 
+                              ? (s === 'online' ? 'text-emerald-400 bg-emerald-500/20' : s === 'warning' ? 'text-amber-400 bg-amber-500/20' : 'text-rose-400 bg-rose-500/20')
+                              : 'text-slate-600 hover:text-slate-400'
+                            }`}
+                           >
+                             {s === 'online' ? '健康' : s === 'warning' ? '拥堵' : '中断'}
+                           </button>
+                         ))}
+                       </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="text-[8px] text-slate-500 font-bold uppercase">流量负载</label>
+                        <span className="text-[9px] font-mono text-sky-400">{Math.round(selectedConnection.trafficLoad * 100)}%</span>
+                      </div>
+                      <input 
+                        type="range" min="0" max="1" step="0.01"
+                        className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sky-500"
+                        value={selectedConnection.trafficLoad}
+                        onChange={(e) => updateConnection(selectedConnection.id, { trafficLoad: parseFloat(e.target.value) })}
+                      />
+                    </div>
+                  </div>
+
+                  {!isLocked && (
+                    <button 
+                      onClick={() => deleteConnection(selectedConnection.id)} 
+                      className="w-full bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest border border-rose-500/20 transition-all"
+                    >
+                      Sever // 断开连接
+                    </button>
+                  )}
+                </section>
+             )}
+          </div>
+        )}
+
+        {/* --- 常驻工具区 (始终可见) --- */}
         {!isLocked && (
           <>
             {/* 1. AI 智能引擎 */}
             <section className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-[10px] font-black text-sky-500 uppercase tracking-widest flex items-center gap-2">
-                  <i className="fas fa-brain text-xs"></i> AI 编排指令
-                </h3>
-              </div>
-              <div className="relative group">
+              <h3 className="text-[10px] font-black text-sky-500 uppercase tracking-widest flex items-center gap-2">
+                <i className="fas fa-brain text-xs"></i> AI 编排指令
+              </h3>
+              <div className="relative">
                 <textarea 
                   placeholder="在此输入您的架构愿景..."
-                  className="w-full bg-slate-900/80 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white outline-none focus:border-sky-500/50 focus:ring-1 focus:ring-sky-500/20 h-24 resize-none transition-all placeholder:text-slate-600 shadow-inner"
+                  className="w-full bg-slate-900/50 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white outline-none focus:border-sky-500/50 transition-all h-20 resize-none shadow-inner"
                   value={aiPrompt}
                   onChange={(e) => setAiPrompt(e.target.value)}
                 />
                 <button 
                   onClick={() => onAutoLayout(aiPrompt)}
                   disabled={isAnalyzing || !aiPrompt}
-                  className="absolute bottom-3 right-3 p-2 bg-sky-500 hover:bg-sky-400 text-slate-950 rounded-lg transition-all disabled:opacity-30 shadow-lg shadow-sky-500/20"
+                  className="absolute bottom-2 right-2 p-2 bg-sky-500 hover:bg-sky-400 text-slate-950 rounded-lg transition-all disabled:opacity-30"
                 >
-                  <i className={`fas ${isAnalyzing ? 'fa-circle-notch animate-spin' : 'fa-paper-plane'}`}></i>
+                  <i className={`fas ${isAnalyzing ? 'fa-circle-notch animate-spin' : 'fa-wand-magic-sparkles'}`}></i>
                 </button>
               </div>
             </section>
 
-            {/* 2. 部署工作台 */}
-            <section className="space-y-6">
+            {/* 2. 资源部署工作台 */}
+            <section className="space-y-4">
               <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                <i className="fas fa-hammer text-xs"></i> 部署工作台
+                <i className="fas fa-plus-circle text-xs"></i> 资源部署
               </h3>
               
               <div className="space-y-4">
-                {/* 资源名称输入 */}
-                <div className="relative">
-                  <input 
-                    type="text" 
-                    placeholder="为新资源命名..." 
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-indigo-500/50 focus:bg-slate-800/50 transition-all shadow-inner" 
-                    value={newNodeName} 
-                    onChange={(e) => setNewNodeName(e.target.value)} 
-                  />
-                </div>
+                <input 
+                  type="text" 
+                  placeholder="微服务名称..." 
+                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50 transition-all" 
+                  value={newNodeName} 
+                  onChange={(e) => setNewNodeName(e.target.value)} 
+                />
 
-                {/* 状态预设选择器 */}
                 <div className="space-y-2">
-                   <label className="text-[9px] text-slate-600 font-black uppercase tracking-widest">预设运行状态</label>
-                   <div className="grid grid-cols-3 gap-1 bg-slate-900/50 p-1 rounded-xl border border-slate-800">
+                   <label className="text-[8px] text-slate-600 font-black uppercase tracking-widest">初始运行状态</label>
+                   <div className="grid grid-cols-3 gap-1 bg-slate-900/30 p-1 rounded-lg">
                      {(['online', 'warning', 'error'] as const).map(s => (
                        <button 
                         key={s}
                         onClick={() => setActivePresetStatus(s)}
-                        className={`py-1.5 rounded-lg text-[9px] font-black uppercase transition-all flex flex-col items-center justify-center gap-1 ${
+                        className={`py-1 rounded text-[8px] font-black uppercase transition-all ${
                           activePresetStatus === s 
-                          ? (s === 'online' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-lg' : s === 'warning' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-pulse')
+                          ? (s === 'online' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : s === 'warning' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30')
                           : 'text-slate-600 hover:text-slate-400'
                         }`}
                        >
-                         <span className={`w-1.5 h-1.5 rounded-full ${s === 'online' ? 'bg-emerald-400' : s === 'warning' ? 'bg-amber-400' : 'bg-rose-400'}`}></span>
-                         {s === 'online' ? '正常' : s === 'warning' ? '负载' : '故障'}
+                         {s === 'online' ? '正常' : s === 'warning' ? '延迟' : '故障'}
                        </button>
                      ))}
                    </div>
                 </div>
 
-                {/* 资源类型磁贴 */}
-                <div className="space-y-2">
-                  <label className="text-[9px] text-slate-600 font-black uppercase tracking-widest">选择服务类型</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {deployableTypes.map(t => (
-                      <button
-                        key={t}
-                        onClick={() => setNewNodeType(t)}
-                        className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border transition-all ${
-                          newNodeType === t 
-                          ? 'bg-indigo-500/10 border-indigo-500/50 text-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.15)]' 
-                          : 'bg-slate-900 border-slate-800 text-slate-500 hover:border-slate-700 hover:text-slate-300'
-                        }`}
-                      >
-                        <i className={`fas ${SERVICE_ICONS[t]} text-lg`}></i>
-                        <span className="text-[9px] font-bold">{SERVICE_TYPE_LABELS[t]}</span>
-                      </button>
-                    ))}
-                  </div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {deployableTypes.map(t => (
+                    <button
+                      key={t}
+                      onClick={() => setNewNodeType(t)}
+                      className={`flex flex-col items-center justify-center py-2 rounded-lg border transition-all ${
+                        newNodeType === t 
+                        ? 'bg-indigo-500/10 border-indigo-500/50 text-indigo-400' 
+                        : 'bg-slate-900/50 border-slate-800/50 text-slate-600 hover:text-slate-400'
+                      }`}
+                    >
+                      <i className={`fas ${SERVICE_ICONS[t]} text-xs mb-1`}></i>
+                      <span className="text-[7px] font-bold truncate w-full px-1 text-center">{SERVICE_TYPE_LABELS[t]}</span>
+                    </button>
+                  ))}
                 </div>
 
-                {/* 部署按钮组 */}
-                <div className="grid grid-cols-1 gap-2 pt-2">
+                <div className="flex flex-col gap-2 pt-1">
                   <button 
                     onClick={() => { if (newNodeName) { addNode(newNodeType, newNodeName, activePresetStatus); setNewNodeName(''); } }} 
                     disabled={!newNodeName}
-                    className="group relative overflow-hidden bg-slate-100 hover:bg-white text-slate-950 font-black py-3 rounded-xl text-[10px] uppercase tracking-widest transition-all disabled:opacity-20 active:scale-95 shadow-xl shadow-white/5"
+                    className="w-full bg-slate-100 hover:bg-white text-slate-950 font-black py-2.5 rounded-xl text-[10px] uppercase tracking-widest transition-all disabled:opacity-20 shadow-lg shadow-white/5"
                   >
-                    <i className="fas fa-plus-circle mr-2 opacity-50 group-hover:scale-110 transition-transform"></i>
-                    部署微服务资源
+                    生成微服务
                   </button>
                   <button 
                     onClick={() => { if (newNodeName) { addGroup(newNodeName, activePresetStatus); setNewNodeName(''); } }} 
                     disabled={!newNodeName}
-                    className="group relative overflow-hidden bg-gradient-to-br from-indigo-600 to-indigo-800 hover:from-indigo-500 hover:to-indigo-700 text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest transition-all border border-indigo-400/30 disabled:opacity-20 active:scale-95 shadow-lg shadow-indigo-900/40"
+                    className="w-full bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-400 border border-indigo-500/30 font-black py-2.5 rounded-xl text-[10px] uppercase tracking-widest transition-all disabled:opacity-20"
                   >
-                    <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
-                    <i className="fas fa-cubes mr-2 opacity-50 group-hover:rotate-12 transition-transform"></i>
-                    构建集群容器
+                    创建集群容器
                   </button>
                 </div>
               </div>
@@ -161,51 +253,18 @@ const Sidebar: React.FC<SidebarProps> = ({
           </>
         )}
 
-        {/* 3. 选定资源属性 */}
-        {selectedNode && (
-          <section className="space-y-4 pt-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
-            <div className="bg-gradient-to-br from-slate-900 to-slate-950 p-5 rounded-2xl border border-sky-500/30 shadow-2xl relative">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-[8px] text-sky-500 font-black uppercase tracking-[0.2em] mb-1">Inspector // 属性审查</p>
-                  <h4 className="font-black text-lg text-white leading-tight">{selectedNode.name}</h4>
-                </div>
-                <div className={`w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-xl shadow-inner`} style={{ color: SERVICE_COLORS[selectedNode.type] }}>
-                   <i className={`fas ${SERVICE_ICONS[selectedNode.type]}`}></i>
-                </div>
-              </div>
-              
-              <div className="mt-6 space-y-3">
-                <div className="flex justify-between text-[10px] border-b border-slate-800 pb-2">
-                  <span className="text-slate-500 font-bold uppercase">运行状态</span>
-                  <span className={`font-black uppercase ${selectedNode.status === 'online' ? 'text-emerald-400' : 'text-amber-400'}`}>{selectedNode.status}</span>
-                </div>
-                <div className="flex justify-between text-[10px] border-b border-slate-800 pb-2">
-                  <span className="text-slate-500 font-bold uppercase">实例 ID</span>
-                  <span className="text-slate-300 font-mono">{selectedNode.id.split('-')[1] || selectedNode.id}</span>
-                </div>
-              </div>
-
-              {!isLocked && (
-                <button 
-                  onClick={() => deleteNode(selectedNode.id)} 
-                  className="w-full mt-6 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border border-rose-500/20 transition-all active:scale-95"
-                >
-                  Terminate Instance // 销毁实例
-                </button>
-              )}
-            </div>
-          </section>
-        )}
-
         {isLocked && (
-          <div className="p-5 bg-amber-500/5 border border-amber-500/20 rounded-2xl flex items-center gap-4">
-             <i className="fas fa-user-shield text-amber-500 text-xl opacity-50"></i>
-             <p className="text-[10px] text-amber-500/70 uppercase font-black tracking-widest leading-snug">
-               Read-Only Mode:<br/>Topology is immutable.
+          <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl flex items-center gap-4">
+             <i className="fas fa-shield-halved text-amber-500 text-lg opacity-40"></i>
+             <p className="text-[9px] text-amber-500/70 uppercase font-black tracking-widest leading-relaxed">
+               安全锁定模式：<br/>禁止修改拓扑结构
              </p>
           </div>
         )}
+      </div>
+
+      <div className="p-4 bg-slate-900/30 border-t border-slate-800/50 text-center">
+         <p className="text-[8px] text-slate-600 font-mono tracking-widest">© 2025 NEOOPS CORE - READY</p>
       </div>
     </aside>
   );

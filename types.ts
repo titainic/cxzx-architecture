@@ -30,7 +30,7 @@ export interface GroupNode {
   position: { x: number; y: number };
   size: { width: number; height: number };
   color: string;
-  status: 'online' | 'warning' | 'error'; // 新增状态属性
+  status: 'online' | 'warning' | 'error';
 }
 
 export interface Connection {
@@ -39,6 +39,7 @@ export interface Connection {
   targetId: string;
   label: string;
   trafficLoad: number; // 0-1
+  status?: 'online' | 'warning' | 'error'; // 新增链路状态
 }
 
 export interface AppState {

@@ -18,11 +18,12 @@ const App: React.FC = () => {
   ]);
 
   const [connections, setConnections] = useState<Connection[]>([
-    { id: 'c1', sourceId: '1', targetId: '2', label: 'HTTP 认证', trafficLoad: 0.4 },
-    { id: 'c2', sourceId: '2', targetId: '3', label: 'SQL 查询', trafficLoad: 0.8 },
+    { id: 'c1', sourceId: '1', targetId: '2', label: 'HTTP 认证', trafficLoad: 0.4, status: 'online' },
+    { id: 'c2', sourceId: '2', targetId: '3', label: 'SQL 查询', trafficLoad: 0.8, status: 'warning' },
   ]);
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
   const [mode, setMode] = useState<'select' | 'add' | 'connect'>('select');
   const [isLocked, setIsLocked] = useState(false);
   const [connectSourceId, setConnectSourceId] = useState<string | null>(null);
@@ -72,6 +73,17 @@ const App: React.FC = () => {
     setSelectedNodeId(null);
   }, [isLocked]);
 
+  const updateConnection = useCallback((id: string, updates: Partial<Connection>) => {
+    if (isLocked) return;
+    setConnections(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+  }, [isLocked]);
+
+  const deleteConnection = useCallback((id: string) => {
+    if (isLocked) return;
+    setConnections(prev => prev.filter(c => c.id !== id));
+    setSelectedConnectionId(null);
+  }, [isLocked]);
+
   const handleElementInteraction = useCallback((id: string) => {
     if (mode === 'connect' && !isLocked) {
       if (!connectSourceId) {
@@ -82,15 +94,24 @@ const App: React.FC = () => {
           sourceId: connectSourceId,
           targetId: id,
           label: '新链路',
-          trafficLoad: 0.2
+          trafficLoad: 0.2,
+          status: 'online'
         }]);
         setConnectSourceId(null);
         setMode('select');
       }
     } else {
       setSelectedNodeId(id === selectedNodeId ? null : id);
+      setSelectedConnectionId(null);
     }
   }, [mode, connectSourceId, selectedNodeId, isLocked]);
+
+  const handleConnectionClick = useCallback((id: string) => {
+    if (mode === 'select') {
+      setSelectedConnectionId(id === selectedConnectionId ? null : id);
+      setSelectedNodeId(null);
+    }
+  }, [mode, selectedConnectionId]);
 
   const updateNodePosition = useCallback((id: string, x: number, y: number) => {
     if (isLocked) return;
@@ -116,7 +137,8 @@ const App: React.FC = () => {
             sourceId: newNodes[c.sourceIndex].id,
             targetId: newNodes[c.targetIndex].id,
             label: c.label,
-            trafficLoad: Math.random() * 0.5
+            trafficLoad: Math.random() * 0.5,
+            status: 'online'
         }));
 
         setNodes(newNodes);
@@ -164,22 +186,33 @@ const App: React.FC = () => {
           50% { opacity: 0.1; }
           100% { transform: translateY(100%); opacity: 0; }
         }
+        @keyframes signal-flow {
+          0% { stroke-dashoffset: 400; }
+          100% { stroke-dashoffset: 0; }
+        }
         .animate-strobe-green { animation: strobe-green 4s ease-in-out infinite; }
-        .animate-strobe-yellow { animation: strobe-yellow 2s ease-in-out infinite; }
-        .animate-strobe-red { animation: strobe-red 1s ease-in-out infinite; }
+        .animate-strobe-yellow { animation: strobe-yellow 2.5s ease-in-out infinite; }
+        .animate-strobe-red { animation: strobe-red 1.2s ease-in-out infinite; }
         .node-button { border-width: 2px; backdrop-filter: blur(12px); transition: transform 0.1s ease-out, filter 0.2s; }
         .node-button:hover { filter: brightness(1.25); z-index: 50; }
         .scan-effect { animation: scan-line 6s linear infinite; }
+        .connection-heartbeat {
+          stroke-dasharray: 60, 340;
+          animation: signal-flow 3s linear infinite;
+          stroke-linecap: round;
+        }
       `}</style>
 
       <Sidebar 
         nodes={nodes} 
         connections={connections}
         selectedNodeId={selectedNodeId}
+        selectedConnectionId={selectedConnectionId}
         addNode={addNode}
         addGroup={addGroup}
         deleteNode={deleteNode}
-        deleteConnection={() => {}}
+        deleteConnection={deleteConnection}
+        updateConnection={updateConnection}
         isAnalyzing={isAnalyzing}
         onAutoLayout={handleAutoLayout}
         isLocked={isLocked}
@@ -199,7 +232,9 @@ const App: React.FC = () => {
           groups={groups}
           connections={connections}
           selectedId={selectedNodeId}
+          selectedConnectionId={selectedConnectionId}
           onElementClick={handleElementInteraction}
+          onConnectionClick={handleConnectionClick}
           onNodeMove={updateNodePosition}
           onUpdateGroup={updateGroup}
           onDeleteGroup={deleteGroup}
