@@ -1,16 +1,18 @@
 
 import React, { useState, useEffect } from 'react';
-import { ServiceNode, Connection, ServiceType } from '../types';
+import { ServiceNode, Connection, ServiceType, GroupNode } from '../types';
 import { SERVICE_ICONS, SERVICE_COLORS } from '../constants';
 
 interface SidebarProps {
   nodes: ServiceNode[];
+  groups: GroupNode[];
   connections: Connection[];
-  selectedNodeId: string | null;
+  selectedId: string | null;
   selectedConnectionId: string | null;
   addNode: (type: ServiceType, name: string, status: 'online' | 'warning' | 'error') => void;
   addGroup: (name: string, status: 'online' | 'warning' | 'error') => void;
   deleteNode: (id: string) => void;
+  deleteGroup: (id: string) => void;
   deleteConnection: (id: string) => void;
   updateConnection: (id: string, updates: Partial<Connection>) => void;
   isAnalyzing: boolean;
@@ -29,14 +31,15 @@ const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
 };
 
 const Sidebar: React.FC<SidebarProps> = ({ 
-  nodes, connections, selectedNodeId, selectedConnectionId, addNode, addGroup, deleteNode, deleteConnection, updateConnection, isAnalyzing, onAutoLayout, isLocked
+  nodes, groups, connections, selectedId, selectedConnectionId, addNode, addGroup, deleteNode, deleteGroup, deleteConnection, updateConnection, isAnalyzing, onAutoLayout, isLocked
 }) => {
   const [newNodeName, setNewNodeName] = useState('');
   const [newNodeType, setNewNodeType] = useState<ServiceType>(ServiceType.SERVER);
   const [activePresetStatus, setActivePresetStatus] = useState<'online' | 'warning' | 'error'>('online');
   const [aiPrompt, setAiPrompt] = useState('');
 
-  const selectedNode = nodes.find(n => n.id === selectedNodeId);
+  const selectedNode = nodes.find(n => n.id === selectedId);
+  const selectedGroup = groups.find(g => g.id === selectedId);
   const selectedConnection = connections.find(c => c.id === selectedConnectionId);
 
   const deployableTypes = Object.values(ServiceType).filter(t => t !== ServiceType.CONTAINER);
@@ -54,7 +57,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       <div className="flex-1 overflow-y-auto p-5 space-y-8 custom-scrollbar scroll-smooth">
         
         {/* --- 动态属性审查区 (选中时出现) --- */}
-        {(selectedNode || selectedConnection) && (
+        {(selectedNode || selectedGroup || selectedConnection) && (
           <div className="animate-in fade-in slide-in-from-top-4 duration-300">
              {selectedNode && (
                 <section className="bg-gradient-to-br from-indigo-950/40 to-slate-900/60 p-4 rounded-2xl border border-sky-500/30 shadow-2xl relative overflow-hidden group">
@@ -87,6 +90,42 @@ const Sidebar: React.FC<SidebarProps> = ({
                       className="w-full bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest border border-rose-500/20 transition-all"
                     >
                       Terminate // 销毁实例
+                    </button>
+                  )}
+                </section>
+             )}
+
+             {selectedGroup && (
+                <section className="bg-gradient-to-br from-indigo-950/40 to-slate-900/60 p-4 rounded-2xl border border-indigo-500/30 shadow-2xl relative overflow-hidden group">
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <p className="text-[8px] text-indigo-400 font-black uppercase tracking-[0.2em] mb-1">Container // 集群容器审查</p>
+                      <h4 className="font-black text-sm text-white truncate max-w-[180px]">{selectedGroup.name}</h4>
+                    </div>
+                    <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-sm shadow-inner border border-slate-800 text-indigo-400">
+                       <i className="fas fa-cubes"></i>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2 text-[9px] border-t border-slate-800/50 pt-3 mb-4">
+                     <div className="flex flex-col">
+                        <span className="text-slate-500 font-bold uppercase mb-1">逻辑尺寸</span>
+                        <span className="text-slate-300">{Math.round(selectedGroup.size.width)} x {Math.round(selectedGroup.size.height)}</span>
+                     </div>
+                     <div className="flex flex-col items-end">
+                        <span className="text-slate-500 font-bold uppercase mb-1">运行健康度</span>
+                        <span className={`font-black uppercase ${selectedGroup.status === 'online' ? 'text-emerald-400' : selectedGroup.status === 'warning' ? 'text-amber-400' : 'text-rose-400'}`}>
+                           {selectedGroup.status === 'online' ? '正常' : selectedGroup.status === 'warning' ? '不稳定' : '容器失效'}
+                        </span>
+                     </div>
+                  </div>
+
+                  {!isLocked && (
+                    <button 
+                      onClick={() => deleteGroup(selectedGroup.id)} 
+                      className="w-full bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest border border-rose-500/20 transition-all"
+                    >
+                      Purge // 销毁容器
                     </button>
                   )}
                 </section>
