@@ -11,9 +11,7 @@ interface SidebarProps {
   addGroup: (name: string, status: 'online' | 'warning' | 'error') => void;
   deleteNode: (id: string) => void;
   deleteConnection: (id: string) => void;
-  onAnalyze: () => void;
   isAnalyzing: boolean;
-  analysisResult: any;
   onAutoLayout: (desc: string) => void;
   isLocked: boolean;
 }
@@ -29,7 +27,7 @@ const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
 };
 
 const Sidebar: React.FC<SidebarProps> = ({ 
-  nodes, connections, selectedNodeId, addNode, addGroup, deleteNode, deleteConnection, onAnalyze, isAnalyzing, analysisResult, onAutoLayout, isLocked
+  nodes, connections, selectedNodeId, addNode, addGroup, deleteNode, deleteConnection, isAnalyzing, onAutoLayout, isLocked
 }) => {
   const [newNodeName, setNewNodeName] = useState('');
   const [newNodeType, setNewNodeType] = useState<ServiceType>(ServiceType.SERVER);
@@ -163,36 +161,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           </>
         )}
 
-        {/* 3. 架构监控 */}
-        <section className="space-y-4 pt-4">
-          <div className="flex items-center justify-between border-t border-slate-800/50 pt-4">
-            <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">架构监控中心</h3>
-            <button onClick={onAnalyze} className="text-[10px] text-sky-400 font-black hover:text-sky-300 transition-colors">REALTIME_SCAN</button>
-          </div>
-          {analysisResult ? (
-            <div className="bg-slate-900/80 p-4 rounded-2xl border border-emerald-500/20 shadow-lg relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
-                <i className="fas fa-shield-virus text-4xl text-emerald-400"></i>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-black text-emerald-400 drop-shadow-[0_0_10px_rgba(52,211,153,0.3)]">{analysisResult.score}</span>
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter">Health Score</span>
-              </div>
-              <div className="mt-3 space-y-1">
-                <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
-                   <div className="bg-emerald-500 h-full transition-all duration-1000" style={{ width: `${analysisResult.score}%` }}></div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="border border-slate-800 border-dashed rounded-2xl p-6 text-center">
-              <i className="fas fa-satellite-dish text-slate-800 text-2xl mb-2"></i>
-              <p className="text-[9px] text-slate-600 font-bold uppercase">等待初始化扫描...</p>
-            </div>
-          )}
-        </section>
-
-        {/* 4. 选定资源属性 */}
+        {/* 3. 选定资源属性 */}
         {selectedNode && (
           <section className="space-y-4 pt-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
             <div className="bg-gradient-to-br from-slate-900 to-slate-950 p-5 rounded-2xl border border-sky-500/30 shadow-2xl relative">

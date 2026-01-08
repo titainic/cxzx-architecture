@@ -4,7 +4,7 @@ import Sidebar from './components/Sidebar';
 import UIOverlay from './components/UIOverlay';
 import Workspace from './components/Workspace';
 import { ServiceNode, Connection, ServiceType, GroupNode } from './types';
-import { analyzeTopology, suggestLayout } from './geminiService';
+import { suggestLayout } from './geminiService';
 
 const App: React.FC = () => {
   const [nodes, setNodes] = useState<ServiceNode[]>([
@@ -27,7 +27,6 @@ const App: React.FC = () => {
   const [isLocked, setIsLocked] = useState(false);
   const [connectSourceId, setConnectSourceId] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<any>(null);
 
   const addNode = useCallback((type: ServiceType, name: string, status: 'online' | 'warning' | 'error' = 'online') => {
     if (isLocked) return;
@@ -97,14 +96,6 @@ const App: React.FC = () => {
     if (isLocked) return;
     setNodes(prev => prev.map(n => n.id === id ? { ...n, position: { ...n.position, x, y } } : n));
   }, [isLocked]);
-
-  const handleAnalyze = async () => {
-    if (nodes.length === 0) return;
-    setIsAnalyzing(true);
-    const result = await analyzeTopology(nodes, connections);
-    setAnalysisResult(result);
-    setIsAnalyzing(false);
-  };
 
   const handleAutoLayout = async (desc: string) => {
     if (!desc || isLocked) return;
@@ -189,9 +180,7 @@ const App: React.FC = () => {
         addGroup={addGroup}
         deleteNode={deleteNode}
         deleteConnection={() => {}}
-        onAnalyze={handleAnalyze}
         isAnalyzing={isAnalyzing}
-        analysisResult={analysisResult}
         onAutoLayout={handleAutoLayout}
         isLocked={isLocked}
       />

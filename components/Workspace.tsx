@@ -270,7 +270,6 @@ const Workspace: React.FC<WorkspaceProps> = ({
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{group.name}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                   <div className="text-[8px] font-mono text-slate-600 bg-slate-900/80 px-1.5 py-0.5 rounded border border-slate-800">CID::{group.id.substring(0,6)}</div>
                    <div className={`text-[8px] font-black px-2 py-0.5 rounded bg-slate-900 border ${statusConfig.border} ${statusConfig.color}`}>{statusConfig.text}</div>
                 </div>
               </div>
