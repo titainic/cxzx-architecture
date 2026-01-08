@@ -14,7 +14,7 @@ const App: React.FC = () => {
   ]);
 
   const [groups, setGroups] = useState<GroupNode[]>([
-    { id: 'g1', name: '生产集群-A', position: { x: 100, y: 150 }, size: { width: 500, height: 250 }, color: '#38bdf8', status: 'online' }
+    { id: 'g1', name: '生产集群-A', position: { x: 100, y: 150 }, size: { width: 500, height: 350 }, color: '#38bdf8', status: 'online' }
   ]);
 
   const [connections, setConnections] = useState<Connection[]>([
@@ -24,52 +24,57 @@ const App: React.FC = () => {
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [mode, setMode] = useState<'select' | 'add' | 'connect'>('select');
+  const [isLocked, setIsLocked] = useState(false);
   const [connectSourceId, setConnectSourceId] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
 
-  const addNode = useCallback((type: ServiceType, name: string) => {
+  const addNode = useCallback((type: ServiceType, name: string, status: 'online' | 'warning' | 'error' = 'online') => {
+    if (isLocked) return;
     const newNode: ServiceNode = {
       id: `node-${Date.now()}`,
       name,
       type,
       position: { x: 200, y: 200, z: 0 },
-      status: 'online',
+      status,
       lastUpdated: new Date().toISOString()
     };
     setNodes(prev => [...prev, newNode]);
-  }, []);
+  }, [isLocked]);
 
   const addGroup = useCallback((name: string, status: 'online' | 'warning' | 'error' = 'online') => {
+    if (isLocked) return;
     const newGroup: GroupNode = {
       id: `group-${Date.now()}`,
       name,
       position: { x: 200, y: 200 },
-      size: { width: 300, height: 200 },
+      size: { width: 400, height: 300 },
       color: '#818cf8',
       status: status
     };
     setGroups(prev => [...prev, newGroup]);
-  }, []);
+  }, [isLocked]);
 
   const updateGroup = useCallback((id: string, updates: Partial<GroupNode>) => {
+    if (isLocked) return;
     setGroups(prev => prev.map(g => g.id === id ? { ...g, ...updates } : g));
-  }, []);
+  }, [isLocked]);
 
   const deleteGroup = useCallback((id: string) => {
+    if (isLocked) return;
     setGroups(prev => prev.filter(g => g.id !== id));
     setConnections(prev => prev.filter(c => c.sourceId !== id && c.targetId !== id));
-  }, []);
+  }, [isLocked]);
 
   const deleteNode = useCallback((id: string) => {
+    if (isLocked) return;
     setNodes(prev => prev.filter(n => n.id !== id));
     setConnections(prev => prev.filter(c => c.sourceId !== id && c.targetId !== id));
     setSelectedNodeId(null);
-  }, []);
+  }, [isLocked]);
 
-  // 核心逻辑：处理节点或容器的交互（点击）
   const handleElementInteraction = useCallback((id: string) => {
-    if (mode === 'connect') {
+    if (mode === 'connect' && !isLocked) {
       if (!connectSourceId) {
         setConnectSourceId(id);
       } else if (connectSourceId !== id) {
@@ -86,11 +91,12 @@ const App: React.FC = () => {
     } else {
       setSelectedNodeId(id === selectedNodeId ? null : id);
     }
-  }, [mode, connectSourceId, selectedNodeId]);
+  }, [mode, connectSourceId, selectedNodeId, isLocked]);
 
   const updateNodePosition = useCallback((id: string, x: number, y: number) => {
+    if (isLocked) return;
     setNodes(prev => prev.map(n => n.id === id ? { ...n, position: { ...n.position, x, y } } : n));
-  }, []);
+  }, [isLocked]);
 
   const handleAnalyze = async () => {
     if (nodes.length === 0) return;
@@ -101,7 +107,7 @@ const App: React.FC = () => {
   };
 
   const handleAutoLayout = async (desc: string) => {
-    if (!desc) return;
+    if (!desc || isLocked) return;
     setIsAnalyzing(true);
     try {
         const layout = await suggestLayout(desc);
@@ -143,23 +149,36 @@ const App: React.FC = () => {
     <div className="flex h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
       <style>{`
         @keyframes strobe-green {
-          0%, 100% { background-color: rgba(34, 197, 94, 0.15); box-shadow: 0 0 15px rgba(34, 197, 94, 0.2); border-color: rgba(34, 197, 94, 0.6); }
-          50% { background-color: rgba(34, 197, 94, 0.02); box-shadow: 0 0 5px rgba(34, 197, 94, 0.05); border-color: rgba(34, 197, 94, 0.2); }
+          0%, 100% { background-color: rgba(34, 197, 94, 0.08); box-shadow: 0 0 20px rgba(34, 197, 94, 0.1), inset 0 0 10px rgba(34, 197, 94, 0.05); border-color: rgba(34, 197, 94, 0.4); }
+          50% { background-color: rgba(34, 197, 94, 0.02); box-shadow: 0 0 5px rgba(34, 197, 94, 0.02); border-color: rgba(34, 197, 94, 0.1); }
         }
         @keyframes strobe-yellow {
-          0%, 100% { background-color: rgba(234, 179, 8, 0.3); box-shadow: 0 0 20px rgba(234, 179, 8, 0.4); border-color: rgba(234, 179, 8, 0.8); }
-          50% { background-color: rgba(234, 179, 8, 0.05); box-shadow: 0 0 8px rgba(234, 179, 8, 0.1); border-color: rgba(234, 179, 8, 0.2); }
+          0%, 100% { background-color: rgba(234, 179, 8, 0.15); box-shadow: 0 0 30px rgba(234, 179, 8, 0.2); border-color: rgba(234, 179, 8, 0.6); }
+          50% { background-color: rgba(234, 179, 8, 0.05); box-shadow: 0 0 10px rgba(234, 179, 8, 0.05); border-color: rgba(234, 179, 8, 0.2); }
         }
         @keyframes strobe-red {
-          0%, 100% { background-color: rgba(239, 68, 68, 0.4); box-shadow: 0 0 25px rgba(239, 68, 68, 0.5); border-color: rgba(239, 68, 68, 0.8); }
-          50% { background-color: rgba(239, 68, 68, 0.05); box-shadow: 0 0 10px rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3); }
+          0%, 100% { 
+            background-color: rgba(239, 68, 68, 0.2); 
+            box-shadow: 0 0 40px rgba(239, 68, 68, 0.4), inset 0 0 15px rgba(239, 68, 68, 0.2); 
+            border-color: rgba(239, 68, 68, 0.8);
+          }
+          50% { 
+            background-color: rgba(239, 68, 68, 0.03); 
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.1); 
+            border-color: rgba(239, 68, 68, 0.2);
+          }
         }
-        .animate-strobe-green { animation: strobe-green 3s ease-in-out infinite; }
-        .animate-strobe-yellow { animation: strobe-yellow 1s ease-in-out infinite; }
-        .animate-strobe-red { animation: strobe-red 0.4s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+        @keyframes scan-line {
+          0% { transform: translateY(-100%); opacity: 0; }
+          50% { opacity: 0.1; }
+          100% { transform: translateY(100%); opacity: 0; }
+        }
+        .animate-strobe-green { animation: strobe-green 4s ease-in-out infinite; }
+        .animate-strobe-yellow { animation: strobe-yellow 2s ease-in-out infinite; }
+        .animate-strobe-red { animation: strobe-red 1s ease-in-out infinite; }
         .node-button { border-width: 2px; backdrop-filter: blur(12px); transition: transform 0.1s ease-out, filter 0.2s; }
         .node-button:hover { filter: brightness(1.25); z-index: 50; }
-        .resize-handle { cursor: nwse-resize; }
+        .scan-effect { animation: scan-line 6s linear infinite; }
       `}</style>
 
       <Sidebar 
@@ -174,6 +193,7 @@ const App: React.FC = () => {
         isAnalyzing={isAnalyzing}
         analysisResult={analysisResult}
         onAutoLayout={handleAutoLayout}
+        isLocked={isLocked}
       />
       
       <main className="flex-1 relative overflow-hidden bg-[radial-gradient(circle_at_center,_#1e293b_0%,_#020617_100%)]">
@@ -181,6 +201,8 @@ const App: React.FC = () => {
             mode={mode} 
             setMode={setMode} 
             connectSource={getActiveSourceLabel()}
+            isLocked={isLocked}
+            setIsLocked={setIsLocked}
         />
         
         <Workspace 
@@ -194,6 +216,7 @@ const App: React.FC = () => {
           onDeleteGroup={deleteGroup}
           onDeleteNode={deleteNode}
           mode={mode}
+          isLocked={isLocked}
         />
 
         {isAnalyzing && (
