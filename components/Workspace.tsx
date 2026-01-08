@@ -250,7 +250,8 @@ const Workspace: React.FC<WorkspaceProps> = ({
               <div className="absolute top-0 left-0 right-0 h-8 bg-slate-950/40 border-b border-slate-700/20 px-4 flex items-center justify-between pointer-events-none">
                 <div className="flex items-center gap-3">
                   <div className={`w-1.5 h-1.5 rounded-full ${group.status === 'online' ? 'bg-emerald-500' : group.status === 'warning' ? 'bg-amber-500' : 'bg-rose-500'} animate-pulse`}></div>
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{group.name}</span>
+                  {/* 修正：移除 uppercase，保留字间距样式 */}
+                  <span className="text-[10px] font-black text-slate-400 tracking-[0.2em]">{group.name}</span>
                 </div>
                 <div className={`text-[8px] font-black px-2 py-0.5 rounded bg-slate-900 border ${statusConfig.border} ${statusConfig.color}`}>{statusConfig.text}</div>
               </div>
@@ -322,7 +323,8 @@ const Workspace: React.FC<WorkspaceProps> = ({
               <div className={`w-full h-full node-button rounded-lg shadow-2xl flex items-center justify-center relative ${getStrobeClass(node.status)} ${isSelected ? 'ring-4 ring-white/60 scale-105 z-20' : ''} ${isLocked ? 'cursor-default' : 'cursor-pointer hover:scale-105'}`} onClick={(e) => { e.stopPropagation(); onElementClick(node.id); }} onMouseDown={(e) => { if (mode === 'select' && !isLocked) { e.stopPropagation(); setDraggingId(node.id); setDragType('node'); } }}>
                 <div className="flex items-center gap-2 pointer-events-none px-2 mb-1">
                   <i className={`fas ${SERVICE_ICONS[node.type]} text-xs text-white`}></i>
-                  <span className="text-[10px] font-black text-white uppercase tracking-tighter truncate">{node.name}</span>
+                  {/* 修正：移除 uppercase，确保显示原始大小写 */}
+                  <span className="text-[10px] font-black text-white tracking-tighter truncate">{node.name}</span>
                 </div>
                 <div className={`absolute -bottom-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[7px] font-black bg-slate-950 border ${statusConfig.border} backdrop-blur-md shadow-xl transition-transform ${statusConfig.color} tracking-[0.2em] uppercase whitespace-nowrap z-20`}>{statusConfig.text}</div>
               </div>
