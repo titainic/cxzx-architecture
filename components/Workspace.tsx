@@ -93,23 +93,6 @@ const Workspace: React.FC<WorkspaceProps> = ({
       return;
     }
 
-    if (draggingId === 'scrollbar-h' || draggingId === 'scrollbar-v') {
-        const rect = containerRef.current.getBoundingClientRect();
-        const contentWidth = contentBounds.maxX - contentBounds.minX;
-        const contentHeight = contentBounds.maxY - contentBounds.minY;
-
-        if (draggingId === 'scrollbar-h') {
-            const ratio = (e.clientX - rect.left) / rect.width;
-            const targetX = contentBounds.minX + ratio * contentWidth - rect.width / 2;
-            setViewOffset(prev => ({ ...prev, x: -targetX }));
-        } else {
-            const ratio = (e.clientY - rect.top) / rect.height;
-            const targetY = contentBounds.minY + ratio * contentHeight - rect.height / 2;
-            setViewOffset(prev => ({ ...prev, y: -targetY }));
-        }
-        return;
-    }
-
     if (mode !== 'select' || isLocked) return;
     
     const rect = containerRef.current.getBoundingClientRect();
@@ -135,24 +118,6 @@ const Workspace: React.FC<WorkspaceProps> = ({
     setDraggingId(null);
     setResizingId(null);
   };
-
-  const scrollMetrics = useMemo(() => {
-    if (!containerRef.current) return { hThumb: { left: 0, width: 0 }, vThumb: { top: 0, height: 0 } };
-    const viewWidth = window.innerWidth - 320;
-    const viewHeight = window.innerHeight;
-    const contentWidth = contentBounds.maxX - contentBounds.minX;
-    const contentHeight = contentBounds.maxY - contentBounds.minY;
-    const hRatio = viewWidth / contentWidth;
-    const hThumbWidth = Math.max(40, viewWidth * hRatio);
-    const hProgress = (-viewOffset.x - contentBounds.minX) / (contentWidth - viewWidth);
-    const vRatio = viewHeight / contentHeight;
-    const vThumbHeight = Math.max(40, viewHeight * vRatio);
-    const vProgress = (-viewOffset.y - contentBounds.minY) / (contentHeight - viewHeight);
-    return {
-        hThumb: { left: Math.max(0, Math.min(viewWidth - hThumbWidth, hProgress * (viewWidth - hThumbWidth))), width: hThumbWidth },
-        vThumb: { top: Math.max(0, Math.min(viewHeight - vThumbHeight, vProgress * (viewHeight - vThumbHeight))), height: vThumbHeight }
-    };
-  }, [viewOffset, contentBounds]);
 
   const getStrobeClass = (status: string) => {
     switch(status) {
@@ -283,15 +248,20 @@ const Workspace: React.FC<WorkspaceProps> = ({
             const points = getConnectionPoint(conn.sourceId, conn.targetId);
             if (!points) return null;
             const { start, end } = points;
-            const status = conn.status || 'online';
+            
+            // 连线仅保留正常/故障
+            const status = (conn.status === 'error') ? 'error' : 'online';
             const bezierPath = getBezierPath(start, end);
             const isSelected = selectedConnectionId === conn.id;
             
-            const statusColor = status === 'online' ? '#22c55e' : status === 'warning' ? '#eab308' : '#ef4444';
+            const statusColor = status === 'online' ? '#22c55e' : '#ef4444';
+            
+            // 修复文字倒挂：如果终点在起点左侧，则反转文字路径的绘制顺序
+            const textPathD = end.x < start.x ? getBezierPath(end, start) : bezierPath;
             
             return (
               <g key={conn.id}>
-                {/* 1. 点击热区 (透明但加厚) */}
+                {/* 1. 点击热区 */}
                 <path 
                   d={bezierPath} 
                   stroke="transparent" 
@@ -301,7 +271,7 @@ const Workspace: React.FC<WorkspaceProps> = ({
                   onClick={(e) => { e.stopPropagation(); onConnectionClick(conn.id); }}
                 />
 
-                {/* 2. 选中高亮轨道 */}
+                {/* 2. 选中高亮 */}
                 {isSelected && (
                   <path 
                     d={bezierPath} 
@@ -316,7 +286,7 @@ const Workspace: React.FC<WorkspaceProps> = ({
                 {/* 3. 基础轨道 */}
                 <path d={bezierPath} stroke={statusColor} strokeWidth="1.5" fill="none" className="opacity-10" />
                 
-                {/* 4. 心跳脉冲 */}
+                {/* 4. 心跳脉冲：强制确保动效类被应用，并根据负载调整速度 */}
                 <path 
                   d={bezierPath} 
                   stroke={statusColor} 
@@ -325,19 +295,20 @@ const Workspace: React.FC<WorkspaceProps> = ({
                   filter="url(#neon-glow)"
                   className="connection-heartbeat" 
                   style={{ 
-                    animationDuration: `${Math.max(0.5, 4 - conn.trafficLoad * 3.5)}s`,
+                    animationDuration: `${Math.max(0.4, 3.5 - conn.trafficLoad * 3)}s`,
+                    strokeDasharray: "60, 340",
                     color: statusColor,
                     strokeOpacity: isSelected ? 1 : 0.8
-                  }}
+                  } as React.CSSProperties}
                 />
 
-                {/* 5. 标签文字 */}
+                {/* 5. 标签文字：使用 textPathD 确保文字方向永远向右 */}
                 <text className={`text-[8px] font-black tracking-widest transition-opacity ${isSelected ? 'opacity-100' : 'opacity-40'}`} fill={statusColor} dy="-8">
-                   <textPath href={`#path-${conn.id}`} startOffset="50%" textAnchor="middle">
+                   <textPath href={`#path-text-${conn.id}`} startOffset="50%" textAnchor="middle">
                       {conn.label}
                    </textPath>
                 </text>
-                <path id={`path-${conn.id}`} d={bezierPath} fill="none" />
+                <path id={`path-text-${conn.id}`} d={textPathD} fill="none" />
               </g>
             );
           })}
@@ -381,8 +352,8 @@ const Workspace: React.FC<WorkspaceProps> = ({
       
       <div className="absolute bottom-10 right-10 pointer-events-none opacity-40">
         <div className="flex flex-col items-end gap-1">
-          <span className="text-[9px] font-black text-sky-500 uppercase tracking-tighter">拓扑引擎: SVG_INTERACTIVE_V1</span>
-          <span className="text-[8px] text-slate-500 underline decoration-sky-500/30 decoration-2 underline-offset-4">点击链路可进入编辑模式</span>
+          <span className="text-[9px] font-black text-sky-500 uppercase tracking-tighter">拓扑引擎: SVG_DIRECTOR_V4</span>
+          <span className="text-[8px] text-slate-500 underline decoration-sky-500/30 decoration-2 underline-offset-4">智能路径与文字自适应已激活</span>
         </div>
       </div>
     </div>

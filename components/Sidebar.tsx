@@ -53,14 +53,11 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       <div className="flex-1 overflow-y-auto p-5 space-y-8 custom-scrollbar scroll-smooth">
         
-        {/* --- 动态审查区 (只有选中时出现，但不会顶掉其他工具) --- */}
+        {/* --- 动态属性审查区 (选中时出现) --- */}
         {(selectedNode || selectedConnection) && (
           <div className="animate-in fade-in slide-in-from-top-4 duration-300">
              {selectedNode && (
                 <section className="bg-gradient-to-br from-indigo-950/40 to-slate-900/60 p-4 rounded-2xl border border-sky-500/30 shadow-2xl relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                     <i className="fas fa-info-circle text-sky-500/40"></i>
-                  </div>
                   <div className="flex items-start justify-between mb-4">
                     <div>
                       <p className="text-[8px] text-sky-500 font-black uppercase tracking-[0.2em] mb-1">Inspector // 实例审查</p>
@@ -71,15 +68,15 @@ const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-2 text-[9px] border-t border-slate-800/50 pt-3">
+                  <div className="grid grid-cols-2 gap-2 text-[9px] border-t border-slate-800/50 pt-3 mb-4">
                      <div className="flex flex-col">
-                        <span className="text-slate-500 font-bold uppercase mb-1">类型</span>
+                        <span className="text-slate-500 font-bold uppercase mb-1">当前类型</span>
                         <span className="text-slate-300">{SERVICE_TYPE_LABELS[selectedNode.type]}</span>
                      </div>
                      <div className="flex flex-col items-end">
-                        <span className="text-slate-500 font-bold uppercase mb-1">健康度</span>
-                        <span className={`font-black ${selectedNode.status === 'online' ? 'text-emerald-400' : selectedNode.status === 'warning' ? 'text-amber-400' : 'text-rose-400'}`}>
-                           {selectedNode.status === 'online' ? '100%' : selectedNode.status === 'warning' ? '65%' : '0%'}
+                        <span className="text-slate-500 font-bold uppercase mb-1">监控状态</span>
+                        <span className={`font-black uppercase ${selectedNode.status === 'online' ? 'text-emerald-400' : selectedNode.status === 'warning' ? 'text-amber-400' : 'text-rose-400'}`}>
+                           {selectedNode.status === 'online' ? '运行中' : selectedNode.status === 'warning' ? '存在告警' : '服务故障'}
                         </span>
                      </div>
                   </div>
@@ -87,7 +84,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   {!isLocked && (
                     <button 
                       onClick={() => deleteNode(selectedNode.id)} 
-                      className="w-full mt-4 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest border border-rose-500/20 transition-all"
+                      className="w-full bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest border border-rose-500/20 transition-all"
                     >
                       Terminate // 销毁实例
                     </button>
@@ -111,19 +108,19 @@ const Sidebar: React.FC<SidebarProps> = ({
                     </div>
 
                     <div className="space-y-1">
-                       <label className="text-[8px] text-slate-500 font-bold uppercase">链路模拟状态</label>
-                       <div className="grid grid-cols-3 gap-1 bg-slate-900/50 p-1 rounded-lg">
-                         {(['online', 'warning', 'error'] as const).map(s => (
+                       <label className="text-[8px] text-slate-500 font-bold uppercase">物理链路状态</label>
+                       <div className="grid grid-cols-2 gap-1 bg-slate-900/50 p-1 rounded-lg">
+                         {(['online', 'error'] as const).map(s => (
                            <button 
                             key={s}
                             onClick={() => updateConnection(selectedConnection.id, { status: s })}
                             className={`py-1 rounded text-[8px] font-black uppercase transition-all ${
                               selectedConnection.status === s 
-                              ? (s === 'online' ? 'text-emerald-400 bg-emerald-500/20' : s === 'warning' ? 'text-amber-400 bg-amber-500/20' : 'text-rose-400 bg-rose-500/20')
+                              ? (s === 'online' ? 'text-emerald-400 bg-emerald-500/20 border border-emerald-500/30' : 'text-rose-400 bg-rose-500/20 border border-rose-500/30')
                               : 'text-slate-600 hover:text-slate-400'
                             }`}
                            >
-                             {s === 'online' ? '健康' : s === 'warning' ? '拥堵' : '中断'}
+                             {s === 'online' ? '正常' : '故障'}
                            </button>
                          ))}
                        </div>
@@ -131,7 +128,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
                     <div className="space-y-1">
                       <div className="flex justify-between items-center mb-1">
-                        <label className="text-[8px] text-slate-500 font-bold uppercase">流量负载</label>
+                        <label className="text-[8px] text-slate-500 font-bold uppercase">实时流量负载</label>
                         <span className="text-[9px] font-mono text-sky-400">{Math.round(selectedConnection.trafficLoad * 100)}%</span>
                       </div>
                       <input 
@@ -156,13 +153,12 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
 
-        {/* --- 常驻工具区 (始终可见) --- */}
+        {/* --- 常驻工具区 (新增服务与 AI) --- */}
         {!isLocked && (
           <>
-            {/* 1. AI 智能引擎 */}
             <section className="space-y-3">
               <h3 className="text-[10px] font-black text-sky-500 uppercase tracking-widest flex items-center gap-2">
-                <i className="fas fa-brain text-xs"></i> AI 编排指令
+                <i className="fas fa-brain text-xs"></i> AI 智能编排
               </h3>
               <div className="relative">
                 <textarea 
@@ -181,17 +177,16 @@ const Sidebar: React.FC<SidebarProps> = ({
               </div>
             </section>
 
-            {/* 2. 资源部署工作台 */}
-            <section className="space-y-4">
+            <section className="space-y-4 pb-4">
               <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                <i className="fas fa-plus-circle text-xs"></i> 资源部署
+                <i className="fas fa-plus-circle text-xs"></i> 资源部署工作台
               </h3>
               
               <div className="space-y-4">
                 <input 
                   type="text" 
-                  placeholder="微服务名称..." 
-                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50 transition-all" 
+                  placeholder="服务实例名称..." 
+                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50 transition-all shadow-inner" 
                   value={newNodeName} 
                   onChange={(e) => setNewNodeName(e.target.value)} 
                 />
@@ -203,13 +198,14 @@ const Sidebar: React.FC<SidebarProps> = ({
                        <button 
                         key={s}
                         onClick={() => setActivePresetStatus(s)}
-                        className={`py-1 rounded text-[8px] font-black uppercase transition-all ${
+                        className={`py-1.5 rounded text-[8px] font-black uppercase transition-all flex flex-col items-center gap-0.5 ${
                           activePresetStatus === s 
                           ? (s === 'online' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : s === 'warning' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30')
                           : 'text-slate-600 hover:text-slate-400'
                         }`}
                        >
-                         {s === 'online' ? '正常' : s === 'warning' ? '延迟' : '故障'}
+                         <span className={`w-1 h-1 rounded-full ${s === 'online' ? 'bg-emerald-400' : s === 'warning' ? 'bg-amber-400' : 'bg-rose-400'}`}></span>
+                         {s === 'online' ? '正常' : s === 'warning' ? '警告' : '故障'}
                        </button>
                      ))}
                    </div>
@@ -220,9 +216,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                     <button
                       key={t}
                       onClick={() => setNewNodeType(t)}
-                      className={`flex flex-col items-center justify-center py-2 rounded-lg border transition-all ${
+                      className={`flex flex-col items-center justify-center py-2.5 rounded-lg border transition-all ${
                         newNodeType === t 
-                        ? 'bg-indigo-500/10 border-indigo-500/50 text-indigo-400' 
+                        ? 'bg-indigo-500/10 border-indigo-500/50 text-indigo-400 shadow-lg' 
                         : 'bg-slate-900/50 border-slate-800/50 text-slate-600 hover:text-slate-400'
                       }`}
                     >
@@ -236,14 +232,14 @@ const Sidebar: React.FC<SidebarProps> = ({
                   <button 
                     onClick={() => { if (newNodeName) { addNode(newNodeType, newNodeName, activePresetStatus); setNewNodeName(''); } }} 
                     disabled={!newNodeName}
-                    className="w-full bg-slate-100 hover:bg-white text-slate-950 font-black py-2.5 rounded-xl text-[10px] uppercase tracking-widest transition-all disabled:opacity-20 shadow-lg shadow-white/5"
+                    className="w-full bg-slate-100 hover:bg-white text-slate-950 font-black py-3 rounded-xl text-[10px] uppercase tracking-widest transition-all disabled:opacity-20 shadow-xl shadow-white/5 active:scale-95"
                   >
-                    生成微服务
+                    生成服务资源
                   </button>
                   <button 
                     onClick={() => { if (newNodeName) { addGroup(newNodeName, activePresetStatus); setNewNodeName(''); } }} 
                     disabled={!newNodeName}
-                    className="w-full bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-400 border border-indigo-500/30 font-black py-2.5 rounded-xl text-[10px] uppercase tracking-widest transition-all disabled:opacity-20"
+                    className="w-full bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-400 border border-indigo-500/30 font-black py-3 rounded-xl text-[10px] uppercase tracking-widest transition-all disabled:opacity-20 active:scale-95"
                   >
                     创建集群容器
                   </button>
@@ -257,7 +253,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl flex items-center gap-4">
              <i className="fas fa-shield-halved text-amber-500 text-lg opacity-40"></i>
              <p className="text-[9px] text-amber-500/70 uppercase font-black tracking-widest leading-relaxed">
-               安全锁定模式：<br/>禁止修改拓扑结构
+               安全锁定模式：<br/>拓扑结构已固化
              </p>
           </div>
         )}
