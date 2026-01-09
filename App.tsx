@@ -122,101 +122,110 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen w-screen bg-[#020617] text-slate-100 overflow-hidden font-sans antialiased">
       <style>{`
-        /* --- 节点(按钮)高级样式重塑 --- */
+        /* --- 节点背景闪烁特效 --- */
+        @keyframes bg-pulse-green {
+          0%, 100% { background: rgba(16, 185, 129, 0.05); border-color: rgba(16, 185, 129, 0.2); box-shadow: inset 0 0 10px rgba(16, 185, 129, 0.05); }
+          50% { background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.5); box-shadow: inset 0 0 20px rgba(16, 185, 129, 0.1), 0 0 15px rgba(16, 185, 129, 0.2); }
+        }
+
+        @keyframes bg-pulse-yellow {
+          0%, 100% { background: rgba(245, 158, 11, 0.05); border-color: rgba(245, 158, 11, 0.2); box-shadow: inset 0 0 10px rgba(245, 158, 11, 0.05); }
+          50% { background: rgba(245, 158, 11, 0.25); border-color: rgba(245, 158, 11, 0.6); box-shadow: inset 0 0 25px rgba(245, 158, 11, 0.2), 0 0 20px rgba(245, 158, 11, 0.3); }
+        }
+
+        @keyframes bg-pulse-red {
+          0%, 100% { background: rgba(244, 63, 94, 0.1); border-color: rgba(244, 63, 94, 0.3); box-shadow: inset 0 0 15px rgba(244, 63, 94, 0.1); }
+          50% { background: rgba(244, 63, 94, 0.4); border-color: rgba(244, 63, 94, 0.8); box-shadow: inset 0 0 35px rgba(244, 63, 94, 0.3), 0 0 30px rgba(244, 63, 94, 0.5); }
+        }
+
+        .card-online { animation: bg-pulse-green 4s ease-in-out infinite; }
+        .card-warning { animation: bg-pulse-yellow 1.5s ease-in-out infinite; }
+        .card-error { animation: bg-pulse-red 0.6s ease-in-out infinite; }
+
         .node-button {
-          background: rgba(15, 23, 42, 0.45);
           backdrop-filter: blur(16px);
           -webkit-backdrop-filter: blur(16px);
           border: 1px solid rgba(255, 255, 255, 0.05);
-          box-shadow: 
-            0 8px 32px 0 rgba(0, 0, 0, 0.37),
-            inset 0 0 12px rgba(255, 255, 255, 0.02);
           transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
           overflow: hidden;
         }
 
-        .node-button::before {
-          content: "";
-          position: absolute;
-          top: -50%;
-          left: -150%;
-          width: 200%;
-          height: 200%;
-          background: linear-gradient(
-            to right,
-            transparent,
-            rgba(255, 255, 255, 0.05),
-            transparent
-          );
-          transform: rotate(30deg);
-          transition: 0.5s;
-          pointer-events: none;
-        }
-        .node-button:hover::before {
-          animation: node-shine 1.5s infinite;
-        }
-        @keyframes node-shine {
-          0% { left: -150%; }
-          100% { left: 150%; }
-        }
-
         .node-button:hover {
-          background: rgba(30, 41, 59, 0.6);
-          border-color: rgba(56, 189, 248, 0.4);
           transform: translateY(-2px) scale(1.02);
-          box-shadow: 
-            0 12px 40px rgba(0, 0, 0, 0.5),
-            0 0 20px rgba(14, 165, 233, 0.1);
         }
 
-        /* 状态呼吸灯核心动画 */
-        @keyframes strobe-green { 0%, 100% { border-color: rgba(16, 185, 129, 0.4); box-shadow: 0 0 10px rgba(16, 185, 129, 0.1); } 50% { border-color: rgba(16, 185, 129, 0.2); } }
-        @keyframes strobe-yellow { 0%, 100% { border-color: rgba(245, 158, 11, 0.4); box-shadow: 0 0 10px rgba(245, 158, 11, 0.1); } 50% { border-color: rgba(245, 158, 11, 0.2); } }
-        @keyframes strobe-red { 0%, 100% { border-color: rgba(239, 68, 68, 0.5); box-shadow: 0 0 15px rgba(239, 68, 68, 0.2); } 50% { border-color: rgba(239, 68, 68, 0.2); } }
-        
-        .animate-strobe-green { animation: strobe-green 4s infinite ease-in-out; }
-        .animate-strobe-yellow { animation: strobe-yellow 2.5s infinite ease-in-out; }
-        .animate-strobe-red { animation: strobe-red 1.2s infinite ease-in-out; }
-
-        /* --- 拓扑连线动效修复与增强 --- */
+        /* --- 拓扑连线动效升级 --- */
         @keyframes signal-run { 0% { stroke-dashoffset: 400; } 100% { stroke-dashoffset: 0; } }
-        @keyframes ekg-move { 0% { stroke-dashoffset: 1000; } 100% { stroke-dashoffset: 0; } }
-        @keyframes ekg-spike {
-          0%, 100% { stroke-width: 2.5px; opacity: 0.4; }
-          15% { stroke-width: 5px; opacity: 1; filter: drop-shadow(0 -5px 5px currentColor); }
-          25% { stroke-width: 3.5px; opacity: 0.7; }
+        @keyframes ekg-move { 0% { stroke-dashoffset: 1200; } 100% { stroke-dashoffset: 0; } }
+        
+        /* 高级心电图动力学 */
+        @keyframes ekg-dynamic {
+          0%, 12%, 48%, 100% { 
+            transform: translateY(0) scaleY(1);
+            stroke-width: 2px;
+            opacity: 0.3;
+          }
+          15% { /* P波 */
+            transform: translateY(-3px);
+            opacity: 0.7;
+          }
+          19% { /* Q点 */
+            transform: translateY(2px);
+          }
+          22% { /* R波: 极速爆发 */
+            transform: translateY(-20px) scaleY(2.5);
+            stroke-width: 7px;
+            opacity: 1;
+            filter: drop-shadow(0 0 15px currentColor) brightness(2.5);
+          }
+          25% { /* S点: 极速回落 */
+            transform: translateY(5px) scaleY(1.5);
+            stroke-width: 4px;
+          }
+          35% { /* T波: 优雅回弹 */
+            transform: translateY(-6px) scaleY(1.2);
+            stroke-width: 3px;
+            opacity: 0.8;
+          }
         }
+
+        /* 选中状态的高频电子抖动 */
+        @keyframes selected-jitter {
+          0%, 100% { filter: brightness(1.2) drop-shadow(0 0 8px currentColor); }
+          20% { transform: translate(1px, -1px); filter: brightness(2) drop-shadow(2px 0 4px #f43f5e) drop-shadow(-2px 0 4px #0ea5e9); }
+          40% { transform: translate(-1.2px, 0.8px); filter: brightness(1.6) drop-shadow(-2px 0 6px #10b981); }
+          60% { transform: translate(0.5px, 1.2px); filter: brightness(2.2) drop-shadow(0 2px 8px #f59e0b); }
+          80% { transform: translate(-0.8px, -0.5px); filter: brightness(1.8) drop-shadow(0 -2px 10px #a78bfa); }
+        }
+
+        .connection-signal { stroke-dasharray: 60, 340; animation: signal-run 3s linear infinite; }
+        
+        .connection-ekg { 
+          stroke-dasharray: 90, 1110; 
+          animation: 
+            ekg-move 3.4s linear infinite, 
+            ekg-dynamic 1.7s cubic-bezier(0.16, 1, 0.3, 1) infinite; 
+          stroke-linecap: round;
+          transform-box: fill-box;
+          transform-origin: center;
+          will-change: transform, stroke-width, filter;
+        }
+
+        .connection-ekg.selected-jump {
+          animation: 
+            ekg-move 1.7s linear infinite, 
+            ekg-dynamic 0.85s cubic-bezier(0.16, 1, 0.3, 1) infinite,
+            selected-jitter 0.12s steps(2) infinite !important;
+          stroke-width: 6px;
+          opacity: 1 !important;
+        }
+
         @keyframes scope-noise { 0% { stroke-dashoffset: 80; filter: brightness(1); } 100% { stroke-dashoffset: 0; filter: brightness(1.5); } }
         @keyframes pulse-flicker { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; stroke-width: 4px; } }
 
-        /* 基础信号流动 */
-        .connection-signal { 
-          stroke-dasharray: 60, 340; 
-          animation: signal-run 3s linear infinite; 
-        }
+        .connection-oscilloscope { stroke-dasharray: 12, 6, 20, 4; animation: scope-noise 0.4s steps(5) infinite; stroke-linecap: square; }
+        .connection-flicker { stroke-dasharray: 6, 2; animation: pulse-flicker 0.15s ease-in-out infinite; stroke-width: 3px; }
         
-        /* 心电图脉冲 */
-        .connection-ekg { 
-           stroke-dasharray: 45, 1000; 
-           animation: ekg-move 2.5s linear infinite, ekg-spike 0.8s ease-out infinite; 
-           stroke-linecap: round;
-        }
-
-        /* 示波器干扰效果 */
-        .connection-oscilloscope { 
-          stroke-dasharray: 12, 6, 20, 4; 
-          animation: scope-noise 0.4s steps(5) infinite; 
-          stroke-linecap: square;
-        }
-
-        /* 异常频闪效果 */
-        .connection-flicker { 
-          stroke-dasharray: 6, 2; 
-          animation: pulse-flicker 0.15s ease-in-out infinite; 
-          stroke-width: 3px;
-        }
-        
-        /* 全屏装饰扫视线 */
         .scanline {
            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%);

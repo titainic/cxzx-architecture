@@ -148,7 +148,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                       />
                     </div>
 
-                    {/* 新增：链路样式选择 */}
                     <div className="space-y-1">
                        <label className="text-[8px] text-slate-500 font-bold uppercase">特效风格</label>
                        <div className="grid grid-cols-2 gap-1 bg-slate-900/50 p-1 rounded-lg">
@@ -187,18 +186,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                        </div>
                     </div>
 
-                    <div className="space-y-1">
-                      <div className="flex justify-between items-center mb-1">
-                        <label className="text-[8px] text-slate-500 font-bold uppercase">实时流量负载</label>
-                        <span className="text-[9px] font-mono text-sky-400">{Math.round(selectedConnection.trafficLoad * 100)}%</span>
-                      </div>
-                      <input 
-                        type="range" min="0" max="1" step="0.01"
-                        className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sky-500"
-                        value={selectedConnection.trafficLoad}
-                        onChange={(e) => updateConnection(selectedConnection.id, { trafficLoad: parseFloat(e.target.value) })}
-                      />
-                    </div>
                   </div>
 
                   {!isLocked && (
@@ -265,6 +252,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                           : 'text-slate-600 hover:text-slate-400'
                         }`}
                        >
+                         {/* FIX: Removed redundant s === 'warning' check that caused build error */}
                          <span className={`w-1 h-1 rounded-full ${s === 'online' ? 'bg-emerald-400' : s === 'warning' ? 'bg-amber-400' : 'bg-rose-400'}`}></span>
                          {s === 'online' ? '正常' : s === 'warning' ? '警告' : '故障'}
                        </button>
