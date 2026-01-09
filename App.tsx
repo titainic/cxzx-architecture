@@ -6,14 +6,19 @@ import Workspace from './components/Workspace';
 import { ServiceNode, Connection, ServiceType, GroupNode } from './types';
 import { suggestLayout } from './geminiService';
 
-const STORAGE_KEY = 'NEOOPS_LAYOUT_DATA';
+/**
+ * NeoOps 运维系统主程序
+ * 负责核心状态管理、全局 CSS 动画定义及持久化逻辑
+ */
+
+const STORAGE_KEY = 'NEOOPS_CORE_STORAGE';
 
 const App: React.FC = () => {
   const [nodes, setNodes] = useState<ServiceNode[]>([]);
   const [groups, setGroups] = useState<GroupNode[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
+  
   const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false });
-
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
   const [mode, setMode] = useState<'select' | 'add' | 'connect'>('select');
@@ -23,7 +28,7 @@ const App: React.FC = () => {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 初始化加载：从 LocalStorage 恢复
+  // 初始化：加载本地存储
   useEffect(() => {
     const savedData = localStorage.getItem(STORAGE_KEY);
     if (savedData) {
@@ -32,23 +37,22 @@ const App: React.FC = () => {
         setNodes(parsed.nodes || []);
         setGroups(parsed.groups || []);
         setConnections(parsed.connections || []);
-        showToast("检测到本地存档，已自动加载配置");
       } catch (e) {
-        console.error("Failed to load layout", e);
+        console.error("配置恢复失败", e);
       }
     } else {
-      // 默认初始数据
+      // 默认演示数据
       setNodes([
-        { id: '1', name: '用户网关', type: ServiceType.GATEWAY, position: { x: 150, y: 250, z: 0 }, status: 'online', lastUpdated: new Date().toISOString() },
-        { id: '2', name: '认证服务', type: ServiceType.SERVER, position: { x: 450, y: 200, z: 0 }, status: 'online', lastUpdated: new Date().toISOString() },
-        { id: '3', name: '产品数据库', type: ServiceType.DATABASE, position: { x: 750, y: 350, z: 0 }, status: 'warning', lastUpdated: new Date().toISOString() },
+        { id: 'n1', name: '接入网关 (Nginx)', type: ServiceType.GATEWAY, position: { x: 150, y: 350, z: 0 }, status: 'online', lastUpdated: new Date().toISOString() },
+        { id: 'n2', name: '用户鉴权中心', type: ServiceType.SERVER, position: { x: 450, y: 300, z: 0 }, status: 'online', lastUpdated: new Date().toISOString() },
+        { id: 'n3', name: '核心数据库 (MySQL)', type: ServiceType.DATABASE, position: { x: 750, y: 450, z: 0 }, status: 'warning', lastUpdated: new Date().toISOString() },
       ]);
       setGroups([
-        { id: 'g1', name: '生产集群-A', position: { x: 100, y: 150 }, size: { width: 500, height: 350 }, color: '#38bdf8', status: 'online' }
+        { id: 'g1', name: '核心业务区', position: { x: 300, y: 200 }, size: { width: 600, height: 450 }, color: '#38bdf8', status: 'online' }
       ]);
       setConnections([
-        { id: 'c1', sourceId: '1', targetId: '2', label: 'HTTP 认证', trafficLoad: 0.4, status: 'online', style: 'signal' },
-        { id: 'c2', sourceId: '2', targetId: '3', label: 'SQL 查询', trafficLoad: 0.8, status: 'online', style: 'fluid' },
+        { id: 'c1', sourceId: 'n1', targetId: 'n2', label: 'SSL/TLS', trafficLoad: 0.3, status: 'online', style: 'signal' },
+        { id: 'c2', sourceId: 'n2', targetId: 'n3', label: 'DB_POOL', trafficLoad: 0.8, status: 'online', style: 'fluid' },
       ]);
     }
   }, []);
@@ -59,371 +63,249 @@ const App: React.FC = () => {
   };
 
   const handleSaveLayout = useCallback(() => {
-    const dataToSave = { nodes, groups, connections };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
-    showToast("当前拓扑布局已保存至本地浏览器存储");
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ nodes, groups, connections }));
+    showToast("布局配置已保存");
   }, [nodes, groups, connections]);
-
-  // 导出配置文件
-  const handleExportConfig = useCallback(() => {
-    const data = { nodes, groups, connections, timestamp: new Date().toISOString() };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `neoops-config-${new Date().getTime()}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-    showToast("配置文件已下载至本地");
-  }, [nodes, groups, connections]);
-
-  // 导入配置文件
-  const handleImportConfig = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const parsed = JSON.parse(event.target?.result as string);
-        if (parsed.nodes && parsed.connections) {
-          setNodes(parsed.nodes);
-          setGroups(parsed.groups || []);
-          setConnections(parsed.connections);
-          showToast("外部配置文件加载成功");
-        }
-      } catch (err) {
-        showToast("无效的配置文件格式");
-      }
-    };
-    reader.readAsText(file);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  }, []);
 
   const toggleLock = useCallback(() => {
     setIsLocked(prev => !prev);
     if (!isLocked) {
       handleSaveLayout();
-      showToast("布局已保存并固化");
+      showToast("布局已锁定");
     } else {
-      showToast("编辑模式已恢复");
+      showToast("开启自由编排");
     }
   }, [isLocked, handleSaveLayout]);
 
-  const addNode = useCallback((type: ServiceType, name: string, status: 'online' | 'warning' | 'error' = 'online') => {
-    if (isLocked) return;
-    const newNode: ServiceNode = {
-      id: `node-${Date.now()}`,
-      name,
-      type,
-      position: { x: 200, y: 200, z: 0 },
-      status,
-      lastUpdated: new Date().toISOString()
-    };
-    setNodes(prev => [...prev, newNode]);
-  }, [isLocked]);
-
-  const addGroup = useCallback((name: string, status: 'online' | 'warning' | 'error' = 'online') => {
-    if (isLocked) return;
-    const newGroup: GroupNode = {
-      id: `group-${Date.now()}`,
-      name,
-      position: { x: 200, y: 200 },
-      size: { width: 400, height: 300 },
-      color: '#818cf8',
-      status: status
-    };
-    setGroups(prev => [...prev, newGroup]);
-  }, [isLocked]);
-
-  const updateGroup = useCallback((id: string, updates: Partial<GroupNode>) => {
-    if (isLocked) return;
-    setGroups(prev => prev.map(g => g.id === id ? { ...g, ...updates } : g));
-  }, [isLocked]);
-
-  const deleteGroup = useCallback((id: string) => {
-    if (isLocked) return;
-    setGroups(prev => prev.filter(g => g.id !== id));
-    setConnections(prev => prev.filter(c => c.sourceId !== id && c.targetId !== id));
+  const handleDeleteNode = useCallback((id: string) => {
+    setNodes(n => n.filter(x => x.id !== id));
+    setConnections(c => c.filter(x => x.sourceId !== id && x.targetId !== id));
     setSelectedId(null);
-  }, [isLocked]);
+  }, []);
 
-  const deleteNode = useCallback((id: string) => {
-    if (isLocked) return;
-    setNodes(prev => prev.filter(n => n.id !== id));
-    setConnections(prev => prev.filter(c => c.sourceId !== id && c.targetId !== id));
+  const handleDeleteGroup = useCallback((id: string) => {
+    setGroups(g => g.filter(x => x.id !== id));
     setSelectedId(null);
-  }, [isLocked]);
-
-  const updateConnection = useCallback((id: string, updates: Partial<Connection>) => {
-    if (isLocked) return;
-    setConnections(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
-  }, [isLocked]);
-
-  const deleteConnection = useCallback((id: string) => {
-    if (isLocked) return;
-    setConnections(prev => prev.filter(c => c.id !== id));
-    setSelectedConnectionId(null);
-  }, [isLocked]);
-
-  const handleElementInteraction = useCallback((id: string) => {
-    if (mode === 'connect' && !isLocked) {
-      if (!connectSourceId) {
-        setConnectSourceId(id);
-      } else if (connectSourceId !== id) {
-        setConnections(prev => [...prev, {
-          id: `c-${Date.now()}`,
-          sourceId: connectSourceId,
-          targetId: id,
-          label: '新链路',
-          trafficLoad: 0.2,
-          status: 'online',
-          style: 'signal'
-        }]);
-        setConnectSourceId(null);
-        setMode('select');
-      }
-    } else {
-      setSelectedId(id === selectedId ? null : id);
-      setSelectedConnectionId(null);
-    }
-  }, [mode, connectSourceId, selectedId, isLocked]);
-
-  const handleConnectionClick = useCallback((id: string) => {
-    if (mode === 'select') {
-      setSelectedConnectionId(id === selectedConnectionId ? null : id);
-      setSelectedId(null);
-    }
-  }, [mode, selectedConnectionId]);
-
-  const updateNodePosition = useCallback((id: string, x: number, y: number) => {
-    if (isLocked) return;
-    setNodes(prev => prev.map(n => n.id === id ? { ...n, position: { ...n.position, x, y } } : n));
-  }, [isLocked]);
+  }, []);
 
   const handleAutoLayout = async (desc: string) => {
     if (!desc || isLocked) return;
     setIsAnalyzing(true);
     try {
-        const layout = await suggestLayout(desc);
-        const newNodes: ServiceNode[] = layout.nodes.map((n: any, i: number) => ({
-            id: `ai-node-${i}-${Date.now()}`,
-            name: n.name,
-            type: n.type as ServiceType,
-            position: { x: (n.x + 10) * 40, y: (n.y + 10) * 30, z: 0 },
-            status: 'online',
-            lastUpdated: new Date().toISOString()
-        }));
-        
-        const newConns: Connection[] = layout.connections.map((c: any, i: number) => ({
-            id: `ai-conn-${i}-${Date.now()}`,
-            sourceId: newNodes[c.sourceIndex].id,
-            targetId: newNodes[c.targetIndex].id,
-            label: c.label,
-            trafficLoad: Math.random() * 0.5,
-            status: 'online',
-            style: 'signal'
-        }));
-
-        setNodes(newNodes);
-        setConnections(newConns);
+      const layout = await suggestLayout(desc);
+      const newNodes: ServiceNode[] = layout.nodes.map((n: any, i: number) => ({
+        id: `ai-n-${i}-${Date.now()}`,
+        name: n.name,
+        type: n.type as ServiceType,
+        position: { x: (n.x + 1) * 60, y: (n.y + 1) * 50, z: 0 },
+        status: 'online',
+        lastUpdated: new Date().toISOString()
+      }));
+      const newConns: Connection[] = layout.connections.map((c: any, i: number) => ({
+        id: `ai-c-${i}-${Date.now()}`,
+        sourceId: newNodes[c.sourceIndex].id,
+        targetId: newNodes[c.targetIndex].id,
+        label: c.label,
+        trafficLoad: 0.2,
+        status: 'online',
+        style: 'signal'
+      }));
+      setNodes(newNodes);
+      setConnections(newConns);
+      showToast("AI 拓扑已生成");
     } catch (e) {
-        console.error("AI Layout failed", e);
+      showToast("AI 服务请求超时");
     }
     setIsAnalyzing(false);
   };
 
-  const getActiveSourceLabel = () => {
-    if (!connectSourceId) return null;
-    const node = nodes.find(n => n.id === connectSourceId);
-    if (node) return node.name;
-    const group = groups.find(g => g.id === connectSourceId);
-    if (group) return group.name;
-    return "未知节点";
-  };
-
   return (
-    <div className="flex h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
+    <div className="flex h-screen w-screen bg-[#020617] text-slate-100 overflow-hidden font-sans antialiased">
       <style>{`
-        @keyframes strobe-green {
-          0%, 100% { background-color: rgba(34, 197, 94, 0.08); box-shadow: 0 0 20px rgba(34, 197, 94, 0.1), inset 0 0 10px rgba(34, 197, 94, 0.05); border-color: rgba(34, 197, 94, 0.4); }
-          50% { background-color: rgba(34, 197, 94, 0.02); box-shadow: 0 0 5px rgba(34, 197, 94, 0.02); border-color: rgba(34, 197, 94, 0.1); }
-        }
-        @keyframes strobe-yellow {
-          0%, 100% { background-color: rgba(234, 179, 8, 0.15); box-shadow: 0 0 30px rgba(234, 179, 8, 0.2); border-color: rgba(234, 179, 8, 0.6); }
-          50% { background-color: rgba(234, 179, 8, 0.05); box-shadow: 0 0 10px rgba(234, 179, 8, 0.05); border-color: rgba(234, 179, 8, 0.2); }
-        }
-        @keyframes strobe-red {
-          0%, 100% { 
-            background-color: rgba(239, 68, 68, 0.2); 
-            box-shadow: 0 0 40px rgba(239, 68, 68, 0.4), inset 0 0 15px rgba(239, 68, 68, 0.2); 
-            border-color: rgba(239, 68, 68, 0.8);
-          }
-          50% { 
-            background-color: rgba(239, 68, 68, 0.03); 
-            box-shadow: 0 0 10px rgba(239, 68, 68, 0.1); 
-            border-color: rgba(239, 68, 68, 0.2);
-          }
-        }
-        @keyframes scan-line {
-          0% { transform: translateY(-100%); opacity: 0; }
-          50% { opacity: 0.1; }
-          100% { transform: translateY(100%); opacity: 0; }
-        }
-        
-        /* 标准信号流动 */
-        @keyframes signal-flow {
-          0% { stroke-dashoffset: 400; }
-          100% { stroke-dashoffset: 0; }
+        /* --- 节点(按钮)高级样式重塑 --- */
+        .node-button {
+          background: rgba(15, 23, 42, 0.45);
+          backdrop-filter: blur(16px);
+          -webkit-backdrop-filter: blur(16px);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          box-shadow: 
+            0 8px 32px 0 rgba(0, 0, 0, 0.37),
+            inset 0 0 12px rgba(255, 255, 255, 0.02);
+          transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+          overflow: hidden;
         }
 
-        /* 1. 心电图 (EKG) 特效核心动画 */
-        /* 位移动画：脉冲移动 */
-        @keyframes ekg-travel {
-          0% { stroke-dashoffset: 1000; }
-          100% { stroke-dashoffset: 0; }
+        .node-button::before {
+          content: "";
+          position: absolute;
+          top: -50%;
+          left: -150%;
+          width: 200%;
+          height: 200%;
+          background: linear-gradient(
+            to right,
+            transparent,
+            rgba(255, 255, 255, 0.05),
+            transparent
+          );
+          transform: rotate(30deg);
+          transition: 0.5s;
+          pointer-events: none;
         }
-        /* 局部跳动动画：模拟尖峰波 */
+        .node-button:hover::before {
+          animation: node-shine 1.5s infinite;
+        }
+        @keyframes node-shine {
+          0% { left: -150%; }
+          100% { left: 150%; }
+        }
+
+        .node-button:hover {
+          background: rgba(30, 41, 59, 0.6);
+          border-color: rgba(56, 189, 248, 0.4);
+          transform: translateY(-2px) scale(1.02);
+          box-shadow: 
+            0 12px 40px rgba(0, 0, 0, 0.5),
+            0 0 20px rgba(14, 165, 233, 0.1);
+        }
+
+        /* 状态呼吸灯核心动画 */
+        @keyframes strobe-green { 0%, 100% { border-color: rgba(16, 185, 129, 0.4); box-shadow: 0 0 10px rgba(16, 185, 129, 0.1); } 50% { border-color: rgba(16, 185, 129, 0.2); } }
+        @keyframes strobe-yellow { 0%, 100% { border-color: rgba(245, 158, 11, 0.4); box-shadow: 0 0 10px rgba(245, 158, 11, 0.1); } 50% { border-color: rgba(245, 158, 11, 0.2); } }
+        @keyframes strobe-red { 0%, 100% { border-color: rgba(239, 68, 68, 0.5); box-shadow: 0 0 15px rgba(239, 68, 68, 0.2); } 50% { border-color: rgba(239, 68, 68, 0.2); } }
+        
+        .animate-strobe-green { animation: strobe-green 4s infinite ease-in-out; }
+        .animate-strobe-yellow { animation: strobe-yellow 2.5s infinite ease-in-out; }
+        .animate-strobe-red { animation: strobe-red 1.2s infinite ease-in-out; }
+
+        /* --- 拓扑连线动效修复与增强 --- */
+        @keyframes signal-run { 0% { stroke-dashoffset: 400; } 100% { stroke-dashoffset: 0; } }
+        @keyframes ekg-move { 0% { stroke-dashoffset: 1000; } 100% { stroke-dashoffset: 0; } }
         @keyframes ekg-spike {
-          0%, 100% { 
-            stroke-width: 3px; 
-            filter: drop-shadow(0 0 2px currentColor);
-          }
-          10%, 30% { 
-            stroke-width: 5px; 
-            filter: drop-shadow(0 -6px 4px currentColor) brightness(1.5);
-          }
-          20% { 
-            stroke-width: 6px; 
-            filter: drop-shadow(0 4px 3px currentColor) brightness(1.8);
-          }
-          50% { 
-            stroke-width: 3px; 
-            filter: drop-shadow(0 0 2px currentColor);
-          }
+          0%, 100% { stroke-width: 2.5px; opacity: 0.4; }
+          15% { stroke-width: 5px; opacity: 1; filter: drop-shadow(0 -5px 5px currentColor); }
+          25% { stroke-width: 3.5px; opacity: 0.7; }
+        }
+        @keyframes scope-noise { 0% { stroke-dashoffset: 80; filter: brightness(1); } 100% { stroke-dashoffset: 0; filter: brightness(1.5); } }
+        @keyframes pulse-flicker { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; stroke-width: 4px; } }
+
+        /* 基础信号流动 */
+        .connection-signal { 
+          stroke-dasharray: 60, 340; 
+          animation: signal-run 3s linear infinite; 
         }
         
-        /* 2. 示波器特效 */
-        @keyframes oscilloscope-noise {
-          0% { stroke-dashoffset: 100; }
-          100% { stroke-dashoffset: 0; }
-        }
-        
-        /* 3. 频闪特效 */
-        @keyframes signal-flicker {
-          0%, 100% { opacity: 0.8; stroke-width: 3px; }
-          5% { opacity: 0.2; stroke-width: 2px; }
-          10% { opacity: 0.8; stroke-width: 3px; }
-          15% { opacity: 0.1; stroke-width: 1px; }
-          20% { opacity: 0.8; stroke-width: 3px; }
-          50% { opacity: 1; stroke-width: 3px; }
-          60% { opacity: 0.8; stroke-width: 3px; }
+        /* 心电图脉冲 */
+        .connection-ekg { 
+           stroke-dasharray: 45, 1000; 
+           animation: ekg-move 2.5s linear infinite, ekg-spike 0.8s ease-out infinite; 
+           stroke-linecap: round;
         }
 
-        .animate-strobe-green { animation: strobe-green 4s ease-in-out infinite; }
-        .animate-strobe-yellow { animation: strobe-yellow 2.5s ease-in-out infinite; }
-        .animate-strobe-red { animation: strobe-red 1.2s ease-in-out infinite; }
-        .node-button { border-width: 2px; backdrop-filter: blur(12px); transition: transform 0.1s ease-out, filter 0.2s; }
-        .node-button:hover { filter: brightness(1.25); z-index: 50; }
-        .scan-effect { animation: scan-line 6s linear infinite; }
-        
-        .connection-signal {
-          stroke-dasharray: 60, 340;
-          animation: signal-flow 3s linear infinite;
-          stroke-linecap: round;
+        /* 示波器干扰效果 */
+        .connection-oscilloscope { 
+          stroke-dasharray: 12, 6, 20, 4; 
+          animation: scope-noise 0.4s steps(5) infinite; 
+          stroke-linecap: square;
+        }
+
+        /* 异常频闪效果 */
+        .connection-flicker { 
+          stroke-dasharray: 6, 2; 
+          animation: pulse-flicker 0.15s ease-in-out infinite; 
+          stroke-width: 3px;
         }
         
-        /* EKG 样式：一段具有跳动感的脉冲在路径上滑动 */
-        .connection-ekg {
-          stroke-dasharray: 40, 1000; /* 40px 的脉冲段 */
-          /* 同时运行位移动画和高频跳动动画 */
-          animation: 
-            ekg-travel 2.5s linear infinite, 
-            ekg-spike 0.8s cubic-bezier(0.1, 0.7, 0.1, 1) infinite;
-          stroke-linecap: round;
-          color: inherit;
+        /* 全屏装饰扫视线 */
+        .scanline {
+           position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+           background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%);
+           background-size: 100% 4px;
+           z-index: 60; pointer-events: none; opacity: 0.08;
         }
-        
-        .connection-oscilloscope {
-          stroke-dasharray: 10, 5, 20, 10, 5, 5, 30, 20;
-          animation: oscilloscope-noise 0.5s linear infinite;
-          stroke-linecap: butt;
-        }
-        
-        .connection-flicker {
-          stroke-dasharray: 4, 4;
-          animation: signal-flicker 0.2s steps(4) infinite;
-          stroke-linecap: round;
-        }
-        
-        .toast-enter { transform: translateY(-100%); opacity: 0; }
-        .toast-enter-active { transform: translateY(0); opacity: 1; transition: all 0.3s ease-out; }
       `}</style>
 
-      {/* 系统通知 Toast */}
+      <div className="scanline"></div>
+
       {toast.visible && (
-        <div className="fixed top-6 right-6 z-[100] bg-slate-900 border border-sky-500/50 px-6 py-3 rounded-xl shadow-[0_0_30px_rgba(14,165,233,0.2)] flex items-center gap-4 animate-in fade-in slide-in-from-top-4">
-          <div className="w-2 h-2 rounded-full bg-sky-500 animate-ping"></div>
-          <span className="text-xs font-black text-sky-400 uppercase tracking-widest">{toast.message}</span>
+        <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[100] bg-slate-900/90 border border-sky-500/30 px-6 py-2 rounded-full shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-top-4">
+          <span className="text-[10px] font-bold text-sky-400 uppercase tracking-[0.2em]">{toast.message}</span>
         </div>
       )}
 
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        onChange={handleImportConfig} 
-        className="hidden" 
-        accept=".json"
-      />
+      <input type="file" ref={fileInputRef} onChange={(e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            const parsed = JSON.parse(event.target?.result as string);
+            if (parsed.nodes) {
+              setNodes(parsed.nodes);
+              setGroups(parsed.groups || []);
+              setConnections(parsed.connections || []);
+              showToast("配置文件已导入");
+            }
+          } catch { showToast("无效的格式"); }
+        };
+        reader.readAsText(file);
+      }} className="hidden" accept=".json" />
 
       <Sidebar 
-        nodes={nodes} 
-        groups={groups}
-        connections={connections}
-        selectedId={selectedId}
-        selectedConnectionId={selectedConnectionId}
-        addNode={addNode}
-        addGroup={addGroup}
-        deleteNode={deleteNode}
-        deleteGroup={deleteGroup}
-        deleteConnection={deleteConnection}
-        updateConnection={updateConnection}
-        isAnalyzing={isAnalyzing}
-        onAutoLayout={handleAutoLayout}
-        isLocked={isLocked}
-        onExport={handleExportConfig}
+        nodes={nodes} groups={groups} connections={connections}
+        selectedId={selectedId} selectedConnectionId={selectedConnectionId}
+        addNode={(type, name, status) => setNodes(prev => [...prev, { id: `n-${Date.now()}`, name, type, position: { x: 200, y: 200, z: 0 }, status, lastUpdated: new Date().toISOString() }])}
+        addGroup={(name, status) => setGroups(prev => [...prev, { id: `g-${Date.now()}`, name, position: { x: 200, y: 200 }, size: { width: 450, height: 350 }, color: '#818cf8', status }])}
+        deleteNode={handleDeleteNode}
+        deleteGroup={handleDeleteGroup}
+        deleteConnection={(id) => { setConnections(c => c.filter(x => x.id !== id)); setSelectedConnectionId(null); }}
+        updateConnection={(id, updates) => setConnections(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c))}
+        isAnalyzing={isAnalyzing} onAutoLayout={handleAutoLayout}
+        isLocked={isLocked} onExport={() => {
+            const data = { nodes, groups, connections, timestamp: new Date().toISOString() };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url; link.download = 'topology-config.json'; link.click();
+            showToast("配置已导出");
+        }}
         onImport={() => fileInputRef.current?.click()}
       />
       
-      <main className="flex-1 relative overflow-hidden bg-[radial-gradient(circle_at_center,_#1e293b_0%,_#020617_100%)]">
+      <main className="flex-1 relative overflow-hidden bg-[radial-gradient(circle_at_50%_50%,_#0f172a_0%,_#020617_100%)]">
         <UIOverlay 
-            mode={mode} 
-            setMode={setMode} 
-            connectSource={getActiveSourceLabel()}
-            isLocked={isLocked}
-            setIsLocked={toggleLock}
+          mode={mode} 
+          setMode={setMode} 
+          connectSource={nodes.find(n => n.id === connectSourceId)?.name || groups.find(g => g.id === connectSourceId)?.name} 
+          isLocked={isLocked} 
+          setIsLocked={toggleLock} 
         />
         
         <Workspace 
-          nodes={nodes} 
-          groups={groups}
-          connections={connections}
-          selectedId={selectedId}
-          selectedConnectionId={selectedConnectionId}
-          onElementClick={handleElementInteraction}
-          onConnectionClick={handleConnectionClick}
-          onNodeMove={updateNodePosition}
-          onUpdateGroup={updateGroup}
-          onDeleteGroup={deleteGroup}
-          onDeleteNode={deleteNode}
-          mode={mode}
-          isLocked={isLocked}
+          nodes={nodes} groups={groups} connections={connections}
+          selectedId={selectedId} selectedConnectionId={selectedConnectionId}
+          onElementClick={(id) => {
+            if (mode === 'connect' && !isLocked) {
+              if (!connectSourceId) setConnectSourceId(id);
+              else {
+                setConnections(prev => [...prev, { id: `c-${Date.now()}`, sourceId: connectSourceId, targetId: id, label: 'AUTH_TRAFFIC', trafficLoad: 0.2, style: 'signal' }]);
+                setConnectSourceId(null); setMode('select');
+              }
+            } else { setSelectedId(id === selectedId ? null : id); setSelectedConnectionId(null); }
+          }}
+          onConnectionClick={(id) => { setSelectedConnectionId(id === selectedConnectionId ? null : id); setSelectedId(null); }}
+          onNodeMove={(id, x, y) => !isLocked && setNodes(prev => prev.map(n => n.id === id ? { ...n, position: { ...n.position, x, y } } : n))}
+          onUpdateGroup={(id, updates) => !isLocked && setGroups(prev => prev.map(g => g.id === id ? { ...g, ...updates } : g))}
+          onDeleteGroup={handleDeleteGroup}
+          onDeleteNode={handleDeleteNode}
+          mode={mode} isLocked={isLocked}
         />
 
         {isAnalyzing && (
             <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md">
-                <div className="bg-slate-900 p-8 rounded-2xl shadow-2xl border border-sky-500/50 flex flex-col items-center">
-                    <div className="w-16 h-16 border-4 border-sky-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                    <h3 className="text-xl font-bold text-sky-400 font-mono tracking-widest text-center">AI_SYNTHESIZING...</h3>
+                <div className="flex flex-col items-center gap-6">
+                    <div className="w-16 h-16 border-2 border-sky-500/20 border-t-sky-500 rounded-full animate-spin"></div>
+                    <p className="text-sky-400 font-mono text-[10px] font-black tracking-[0.8em] animate-pulse">SYNTHESIZING_TOPOLOGY...</p>
                 </div>
             </div>
         )}

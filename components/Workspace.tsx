@@ -1,7 +1,7 @@
 
 import React, { useRef, useState, useMemo, useEffect } from 'react';
 import { ServiceNode, Connection, GroupNode } from '../types';
-import { SERVICE_ICONS } from '../constants';
+import { SERVICE_ICONS, SERVICE_COLORS } from '../constants';
 
 interface WorkspaceProps {
   nodes: ServiceNode[];
@@ -44,26 +44,16 @@ const Workspace: React.FC<WorkspaceProps> = ({
   const [resizingId, setResizingId] = useState<string | null>(null);
   const [dragType, setDragType] = useState<'node' | 'group' | 'resize' | 'scroll-h' | 'scroll-v'>('node');
 
-  // 计算内容的总边界，用于滚动条比例
   const contentBounds = useMemo(() => {
-    let minX = 0, maxX = 1200, minY = 0, maxY = 800;
-    
+    let minX = 0, maxX = 1500, minY = 0, maxY = 1000;
     nodes.forEach(n => {
-      minX = Math.min(minX, n.position.x - 200);
-      maxX = Math.max(maxX, n.position.x + 300);
-      minY = Math.min(minY, n.position.y - 200);
-      maxY = Math.max(maxY, n.position.y + 300);
+      minX = Math.min(minX, n.position.x - 300);
+      maxX = Math.max(maxX, n.position.x + 400);
+      minY = Math.min(minY, n.position.y - 300);
+      maxY = Math.max(maxY, n.position.y + 400);
     });
-
-    groups.forEach(g => {
-      minX = Math.min(minX, g.position.x - 200);
-      maxX = Math.max(maxX, g.position.x + g.size.width + 300);
-      minY = Math.min(minY, g.position.y - 200);
-      maxY = Math.max(maxY, g.position.y + g.size.height + 300);
-    });
-
     return { minX, maxX, minY, maxY, width: maxX - minX, height: maxY - minY };
-  }, [nodes, groups]);
+  }, [nodes]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!containerRef.current) return;
@@ -85,7 +75,6 @@ const Workspace: React.FC<WorkspaceProps> = ({
       return;
     }
 
-    // 处理滚动条拖拽
     if (draggingId === 'scrollbar-h' || draggingId === 'scrollbar-v') {
       if (draggingId === 'scrollbar-h') {
         const ratio = (e.clientX - rect.left) / rect.width;
@@ -103,18 +92,14 @@ const Workspace: React.FC<WorkspaceProps> = ({
     const y = e.clientY - rect.top - viewOffset.y;
 
     if (draggingId && dragType === 'node') {
-      onNodeMove(draggingId, x - 60, y - 20);
+      onNodeMove(draggingId, x - 65, y - 22);
     } else if (draggingId && dragType === 'group') {
       const group = groups.find(g => g.id === draggingId);
-      if (group) {
-        onUpdateGroup(draggingId, { position: { x: x - group.size.width / 2, y: y - 16 } });
-      }
+      if (group) onUpdateGroup(draggingId, { position: { x: x - group.size.width / 2, y: y - 16 } });
     } else if (resizingId) {
       const group = groups.find(g => g.id === resizingId);
       if (group) {
-        const newWidth = Math.max(200, x - group.position.x);
-        const newHeight = Math.max(150, y - group.position.y);
-        onUpdateGroup(resizingId, { size: { width: newWidth, height: newHeight } });
+        onUpdateGroup(resizingId, { size: { width: Math.max(200, x - group.position.x), height: Math.max(150, y - group.position.y) } });
       }
     }
   };
@@ -124,25 +109,6 @@ const Workspace: React.FC<WorkspaceProps> = ({
     setDraggingId(null);
     setResizingId(null);
   };
-
-  // 滚动条样式计算
-  const getScrollStyles = () => {
-    if (!containerRef.current) return { h: { left: 0, width: 0 }, v: { top: 0, height: 0 } };
-    const { width: viewW, height: viewH } = containerRef.current.getBoundingClientRect();
-    
-    const hThumbW = Math.max(40, (viewW / contentBounds.width) * viewW);
-    const hThumbL = ((-viewOffset.x - contentBounds.minX) / contentBounds.width) * viewW;
-    
-    const vThumbH = Math.max(40, (viewH / contentBounds.height) * viewH);
-    const vThumbT = ((-viewOffset.y - contentBounds.minY) / contentBounds.height) * viewH;
-
-    return {
-      h: { left: Math.max(0, Math.min(viewW - hThumbW, hThumbL)), width: hThumbW },
-      v: { top: Math.max(0, Math.min(viewH - vThumbH, vThumbT)), height: vThumbH }
-    };
-  };
-
-  const scrollStyles = getScrollStyles();
 
   const getStrobeClass = (status: string) => {
     switch(status) {
@@ -155,16 +121,16 @@ const Workspace: React.FC<WorkspaceProps> = ({
 
   const getStatusConfig = (status: string) => {
     switch(status) {
-      case 'online': return { text: '运行', color: 'text-emerald-400', border: 'border-emerald-500/50', glow: 'shadow-[inset_0_0_20px_rgba(52,211,153,0.1)]' };
-      case 'warning': return { text: '警告', color: 'text-amber-400', border: 'border-amber-500/50', glow: 'shadow-[inset_0_0_20px_rgba(251,191,36,0.1)]' };
-      case 'error': return { text: '故障', color: 'text-rose-400', border: 'border-rose-500/50', glow: 'shadow-[inset_0_0_20px_rgba(244,63,94,0.15)]' };
-      default: return { text: '运行', color: 'text-emerald-400', border: 'border-emerald-500/50', glow: 'shadow-[inset_0_0_20px_rgba(52,211,153,0.1)]' };
+      case 'online': return { text: 'RUNNING', color: 'text-emerald-400', border: 'border-emerald-500/30' };
+      case 'warning': return { text: 'STRESSED', color: 'text-amber-400', border: 'border-amber-500/30' };
+      case 'error': return { text: 'OFFLINE', color: 'text-rose-400', border: 'border-rose-500/30' };
+      default: return { text: 'RUNNING', color: 'text-emerald-400', border: 'border-emerald-500/30' };
     }
   };
 
   const getElementInfo = (id: string) => {
     const node = nodes.find(n => n.id === id);
-    if (node) return { x: node.position.x, y: node.position.y, w: 120, h: 40, cx: node.position.x + 60, cy: node.position.y + 20, isGroup: false };
+    if (node) return { x: node.position.x, y: node.position.y, w: 130, h: 44, cx: node.position.x + 65, cy: node.position.y + 22, isGroup: false };
     const group = groups.find(g => g.id === id);
     if (group) return { x: group.position.x, y: group.position.y, w: group.size.width, h: group.size.height, cx: group.position.x + group.size.width / 2, cy: group.position.y + group.size.height / 2, isGroup: true };
     return null;
@@ -189,28 +155,26 @@ const Workspace: React.FC<WorkspaceProps> = ({
     const dx = Math.abs(end.x - start.x);
     const dy = Math.abs(end.y - start.y);
     const horizontal = dx > dy;
-    const ctrl1 = horizontal ? { x: start.x + dx / 3, y: start.y } : { x: start.x, y: start.y + dy / 3 };
-    const ctrl2 = horizontal ? { x: end.x - dx / 3, y: end.y } : { x: end.x, y: end.y - dy / 3 };
+    const ctrl1 = horizontal ? { x: start.x + dx / 4, y: start.y } : { x: start.x, y: start.y + dy / 4 };
+    const ctrl2 = horizontal ? { x: end.x - dx / 4, y: end.y } : { x: end.x, y: end.y - dy / 4 };
     return `M ${start.x} ${start.y} C ${ctrl1.x} ${ctrl1.y}, ${ctrl2.x} ${ctrl2.y}, ${end.x} ${end.y}`;
   };
 
   const gridBackground = useMemo(() => ({
     backgroundImage: `
-      linear-gradient(to right, rgba(14, 165, 233, 0.05) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(14, 165, 233, 0.05) 1px, transparent 1px),
-      linear-gradient(to right, rgba(14, 165, 233, 0.02) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(14, 165, 233, 0.02) 1px, transparent 1px)
+      linear-gradient(to right, rgba(14, 165, 233, 0.04) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(14, 165, 233, 0.04) 1px, transparent 1px)
     `,
-    backgroundSize: '100px 100px, 100px 100px, 20px 20px, 20px 20px',
+    backgroundSize: '40px 40px',
     backgroundPosition: `${viewOffset.x}px ${viewOffset.y}px`
   }), [viewOffset]);
 
-  // 辅助函数：根据样式获取动画类名
-  const getConnectionClass = (style: string = 'signal') => {
+  // 根据 style 映射 CSS 类名
+  const getConnectionClass = (style: string | undefined) => {
     switch (style) {
-      case 'fluid': return 'connection-ekg'; // 原 Fluid -> 现 心电图
-      case 'packet': return 'connection-oscilloscope'; // 原 Packet -> 现 示波器
-      case 'dashed': return 'connection-flicker'; // 原 Dashed -> 现 频闪/跳动
+      case 'fluid': return 'connection-ekg';
+      case 'packet': return 'connection-oscilloscope';
+      case 'dashed': return 'connection-flicker';
       case 'signal': 
       default: return 'connection-signal';
     }
@@ -220,174 +184,109 @@ const Workspace: React.FC<WorkspaceProps> = ({
     <div 
       ref={containerRef}
       style={gridBackground}
-      className={`w-full h-full relative select-none transition-colors overflow-hidden ${isPanning ? 'cursor-grabbing' : 'cursor-default'}`}
+      className={`w-full h-full relative select-none overflow-hidden ${isPanning ? 'cursor-grabbing' : 'cursor-default'}`}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
-      <div 
-        style={{ 
-          transform: `translate(${viewOffset.x}px, ${viewOffset.y}px)`,
-          position: 'absolute',
-          inset: 0,
-          pointerEvents: 'none'
-        }}
-      >
-        {/* 容器层 (Groups) */}
-        {groups.map((group) => {
-          const statusConfig = getStatusConfig(group.status);
-          const strobeClass = getStrobeClass(group.status);
-          const isSelected = selectedId === group.id;
-          return (
-            <div
-              key={group.id}
-              style={{ left: group.position.x, top: group.position.y, width: group.size.width, height: group.size.height, pointerEvents: 'auto' }}
-              className={`absolute group/container z-0 transition-all ${isLocked ? 'pointer-events-auto' : 'cursor-move'}`}
-              onClick={(e) => { e.stopPropagation(); onElementClick(group.id); }}
-              onMouseDown={(e) => {
-                if (mode === 'select' && !isLocked) {
-                   e.stopPropagation();
-                   setDraggingId(group.id);
-                   setDragType('group');
-                }
-              }}
-            >
-              <div className={`absolute inset-0 rounded-2xl bg-slate-900/40 backdrop-blur-md border transition-all duration-300 ${isSelected ? 'border-sky-500 shadow-[0_0_30px_rgba(14,165,233,0.3)] ring-2 ring-sky-500/20' : 'border-slate-700/30'} overflow-hidden ${statusConfig.glow} ${strobeClass}`}>
-                 <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'radial-gradient(#38bdf8 1px, transparent 0)', backgroundSize: '10px 10px' }}></div>
-                 <div className="absolute inset-0 scan-effect bg-gradient-to-b from-transparent via-sky-500/5 to-transparent h-1/2 w-full"></div>
-              </div>
-              
-              <div className="absolute top-0 left-0 right-0 h-8 bg-slate-950/40 border-b border-slate-700/20 px-4 flex items-center justify-between pointer-events-none">
-                <div className="flex items-center gap-3">
-                  <div className={`w-1.5 h-1.5 rounded-full ${group.status === 'online' ? 'bg-emerald-500' : group.status === 'warning' ? 'bg-amber-500' : 'bg-rose-500'} animate-pulse`}></div>
-                  <span className="text-[10px] font-black text-slate-400 tracking-[0.2em]">{group.name}</span>
-                </div>
-                <div className={`text-[8px] font-black px-2 py-0.5 rounded bg-slate-900 border ${statusConfig.border} ${statusConfig.color}`}>{statusConfig.text}</div>
-              </div>
-
-              {/* 尺寸调整手柄 */}
-              {!isLocked && (
-                <div 
-                  className="absolute bottom-1 right-1 w-6 h-6 cursor-nwse-resize flex items-end justify-end p-1 hover:bg-sky-500/20 rounded-lg transition-colors group-hover:opacity-100 opacity-40"
-                  onMouseDown={(e) => {
-                    e.stopPropagation();
-                    setResizingId(group.id);
-                  }}
-                >
-                  <div className="w-3 h-3 border-r-2 border-b-2 border-sky-400/80 rounded-br-sm"></div>
-                </div>
-              )}
+      <div style={{ transform: `translate(${viewOffset.x}px, ${viewOffset.y}px)`, position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+        {/* 分组层 */}
+        {groups.map((group) => (
+          <div
+            key={group.id}
+            style={{ left: group.position.x, top: group.position.y, width: group.size.width, height: group.size.height, pointerEvents: 'auto' }}
+            className={`absolute z-0 transition-all ${isLocked ? 'pointer-events-auto' : 'cursor-move'}`}
+            onClick={(e) => { e.stopPropagation(); onElementClick(group.id); }}
+            onMouseDown={(e) => { if (mode === 'select' && !isLocked) { e.stopPropagation(); setDraggingId(group.id); setDragType('group'); } }}
+          >
+            <div className={`absolute inset-0 rounded-3xl bg-slate-950/20 backdrop-blur-sm border transition-all duration-500 ${selectedId === group.id ? 'border-sky-500 shadow-[0_0_40px_rgba(14,165,233,0.1)] ring-1 ring-sky-500/30' : 'border-slate-800/40'} ${getStrobeClass(group.status)}`}></div>
+            <div className="absolute top-4 left-6 flex items-center gap-3 opacity-60">
+              <span className="text-[9px] font-black text-slate-500 tracking-[0.3em] uppercase">{group.name}</span>
             </div>
-          );
-        })}
+            {!isLocked && (
+              <div 
+                className="absolute bottom-3 right-3 w-6 h-6 cursor-nwse-resize opacity-20 hover:opacity-100 transition-opacity"
+                onMouseDown={(e) => { e.stopPropagation(); setResizingId(group.id); }}
+              >
+                <div className="w-full h-full border-r-2 border-b-2 border-slate-500 rounded-br"></div>
+              </div>
+            )}
+          </div>
+        ))}
 
         {/* 连线层 */}
         <svg className="absolute inset-0 w-full h-full pointer-events-none z-[5]">
           <defs>
-             <filter id="neon-glow" x="-100%" y="-100%" width="300%" height="300%">
-                <feGaussianBlur stdDeviation="4" result="blur"/>
-                <feComposite in="SourceGraphic" in2="blur" operator="over"/>
-             </filter>
-             <filter id="selection-glow" x="-100%" y="-100%" width="300%" height="300%">
-                <feGaussianBlur stdDeviation="6" result="blur"/>
-                <feColorMatrix type="matrix" values="1 0 0 0 1  0 1 0 0 1  0 0 1 0 1  0 0 0 1 0" />
-                <feComposite in="SourceGraphic" in2="blur" operator="over"/>
-             </filter>
+            <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
           </defs>
-          
           {connections.map((conn) => {
             const points = getConnectionPoint(conn.sourceId, conn.targetId);
             if (!points) return null;
             const { start, end } = points;
-            
-            const status = (conn.status === 'error') ? 'error' : 'online';
             const bezierPath = getBezierPath(start, end);
             const isSelected = selectedConnectionId === conn.id;
-            const statusColor = status === 'online' ? '#22c55e' : '#ef4444';
-            
-            // 修复文字倒挂
-            const textPathD = end.x < start.x ? getBezierPath(end, start) : bezierPath;
-            
-            // 获取当前连线的动画类名
-            const animClass = getConnectionClass(conn.style);
-
+            const color = conn.status === 'error' ? '#ef4444' : '#0ea5e9';
             return (
               <g key={conn.id}>
-                <path d={bezierPath} stroke="transparent" strokeWidth="20" fill="none" className="cursor-pointer pointer-events-auto" onClick={(e) => { e.stopPropagation(); onConnectionClick(conn.id); }} />
-                {isSelected && <path d={bezierPath} stroke="white" strokeWidth="4" fill="none" className="opacity-20 animate-pulse" filter="url(#selection-glow)" />}
-                <path d={bezierPath} stroke={statusColor} strokeWidth="1.5" fill="none" className="opacity-10" />
-                
-                {/* 动态连线：应用不同的 className 实现不同特效 */}
+                <path d={bezierPath} stroke="transparent" strokeWidth="24" fill="none" className="cursor-pointer pointer-events-auto" onClick={(e) => { e.stopPropagation(); onConnectionClick(conn.id); }} />
                 <path 
                   d={bezierPath} 
-                  stroke={statusColor} 
-                  strokeWidth={isSelected ? "4" : "3"} 
+                  stroke={color} 
+                  strokeWidth={isSelected ? 4 : 2} 
                   fill="none" 
-                  filter="url(#neon-glow)" 
-                  className={animClass} 
-                  style={{ 
-                    // 仅对 signal 应用基于流量的动画速度，其他特效使用 CSS 定义的固定节奏
-                    animationDuration: conn.style === 'signal' ? `${Math.max(0.4, 3.5 - conn.trafficLoad * 3)}s` : undefined, 
-                    color: statusColor, 
-                    strokeOpacity: isSelected ? 1 : 0.8 
-                  } as React.CSSProperties} 
+                  className={getConnectionClass(conn.style)} 
+                  filter="url(#glow)" 
+                  style={{ opacity: isSelected ? 1 : 0.4, color }} 
                 />
-                
-                <text className={`text-[8px] font-black tracking-widest transition-opacity ${isSelected ? 'opacity-100' : 'opacity-40'}`} fill={statusColor} dy="-8">
-                   <textPath href={`#path-text-${conn.id}`} startOffset="50%" textAnchor="middle">{conn.label}</textPath>
+                <text className="text-[7px] font-black tracking-widest" fill={color} dy="-8" style={{ opacity: isSelected ? 1 : 0.3 }}>
+                  <textPath href={`#p-${conn.id}`} startOffset="50%" textAnchor="middle">{conn.label}</textPath>
                 </text>
-                <path id={`path-text-${conn.id}`} d={textPathD} fill="none" />
+                <path id={`p-${conn.id}`} d={end.x < start.x ? getBezierPath(end, start) : bezierPath} fill="none" />
               </g>
             );
           })}
         </svg>
 
-        {/* 节点层 */}
+        {/* 节点层 (服务按钮) */}
         {nodes.map((node) => {
           const isSelected = selectedId === node.id;
           const statusConfig = getStatusConfig(node.status);
+          const serviceColor = SERVICE_COLORS[node.type];
           return (
-            <div key={node.id} style={{ left: node.position.x, top: node.position.y, width: '120px', height: '40px', pointerEvents: 'auto' }} className="absolute z-10 flex flex-col items-center group/node">
-              <div className={`w-full h-full node-button rounded-lg shadow-2xl flex items-center justify-center relative ${getStrobeClass(node.status)} ${isSelected ? 'ring-4 ring-white/60 scale-105 z-20' : ''} ${isLocked ? 'cursor-default' : 'cursor-pointer hover:scale-105'}`} onClick={(e) => { e.stopPropagation(); onElementClick(node.id); }} onMouseDown={(e) => { if (mode === 'select' && !isLocked) { e.stopPropagation(); setDraggingId(node.id); setDragType('node'); } }}>
-                <div className="flex items-center gap-2 pointer-events-none px-2 mb-1">
-                  <i className={`fas ${SERVICE_ICONS[node.type]} text-xs text-white`}></i>
-                  {/* 修正：移除 uppercase，确保显示原始大小写 */}
-                  <span className="text-[10px] font-black text-white tracking-tighter truncate">{node.name}</span>
+            <div key={node.id} style={{ left: node.position.x, top: node.position.y, width: '130px', height: '44px', pointerEvents: 'auto' }} className="absolute z-10">
+              <div 
+                className={`w-full h-full node-button rounded-xl flex items-center px-3 relative ${getStrobeClass(node.status)} ${isSelected ? 'ring-2 ring-sky-500/50 scale-105 z-20' : ''} ${isLocked ? 'cursor-default' : 'cursor-pointer'}`}
+                onClick={(e) => { e.stopPropagation(); onElementClick(node.id); }}
+                onMouseDown={(e) => { if (mode === 'select' && !isLocked) { e.stopPropagation(); setDraggingId(node.id); setDragType('node'); } }}
+              >
+                <div className="flex items-center gap-3 w-full">
+                  <div className="w-8 h-8 rounded-lg bg-slate-900/50 flex items-center justify-center border border-white/5 shadow-inner">
+                    <i className={`fas ${SERVICE_ICONS[node.type]} text-xs`} style={{ color: serviceColor, filter: `drop-shadow(0 0 5px ${serviceColor}40)` }}></i>
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[9px] font-black text-slate-100 tracking-wider truncate uppercase">{node.name}</span>
+                    <span className={`text-[7px] font-bold tracking-widest ${statusConfig.color} mt-0.5`}>{statusConfig.text}</span>
+                  </div>
                 </div>
-                <div className={`absolute -bottom-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[7px] font-black bg-slate-950 border ${statusConfig.border} backdrop-blur-md shadow-xl transition-transform ${statusConfig.color} tracking-[0.2em] uppercase whitespace-nowrap z-20`}>{statusConfig.text}</div>
+                {/* 右上角运行指示点 */}
+                <div className="absolute top-2 right-2">
+                   <div className={`w-1 h-1 rounded-full ${node.status === 'online' ? 'bg-emerald-400' : node.status === 'warning' ? 'bg-amber-400' : 'bg-rose-400'} shadow-[0_0_5px_currentColor]`}></div>
+                </div>
               </div>
             </div>
           );
         })}
       </div>
-
-      {/* 横向滚动条 */}
-      <div 
-        className="absolute bottom-1 left-4 right-4 h-1.5 bg-slate-900/50 rounded-full cursor-pointer z-[50]"
-        onMouseDown={(e) => { e.stopPropagation(); setDraggingId('scrollbar-h'); }}
-      >
-        <div 
-          className="absolute h-full bg-sky-500/30 border border-sky-400/50 rounded-full transition-all hover:bg-sky-500/50"
-          style={{ left: `${scrollStyles.h.left}px`, width: `${scrollStyles.h.width}px` }}
-        />
-      </div>
-
-      {/* 纵向滚动条 */}
-      <div 
-        className="absolute top-4 bottom-4 right-1 w-1.5 bg-slate-900/50 rounded-full cursor-pointer z-[50]"
-        onMouseDown={(e) => { e.stopPropagation(); setDraggingId('scrollbar-v'); }}
-      >
-        <div 
-          className="absolute w-full bg-sky-500/30 border border-sky-400/50 rounded-full transition-all hover:bg-sky-500/50"
-          style={{ top: `${scrollStyles.v.top}px`, height: `${scrollStyles.v.height}px` }}
-        />
-      </div>
       
-      <div className="absolute bottom-10 right-10 pointer-events-none opacity-40">
-        <div className="flex flex-col items-end gap-1">
-          <span className="text-[9px] font-black text-sky-500 uppercase tracking-tighter">拓扑引擎: SVG_EXPANDED_V5</span>
-          <span className="text-[8px] text-slate-500 underline decoration-sky-500/30 decoration-2 underline-offset-4">智能双轴滚动系统已激活</span>
+      {/* 底部装饰标识 */}
+      <div className="absolute bottom-8 right-10 pointer-events-none">
+        <div className="flex flex-col items-end opacity-20">
+          <span className="text-[10px] font-black text-sky-500 tracking-[0.5em] uppercase">NEOOPS_SYSTEM_ACTIVE</span>
+          <div className="w-32 h-[1px] bg-sky-500/30 mt-1"></div>
         </div>
       </div>
     </div>
