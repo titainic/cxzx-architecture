@@ -1,97 +1,58 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { ServiceNode, Connection } from "./types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-export async function analyzeTopology(nodes: ServiceNode[], connections: Connection[]) {
-  const prompt = `
-    Analyze this system architecture and suggest improvements for reliability and scalability.
-    
-    Nodes: ${JSON.stringify(nodes.map(n => ({ id: n.id, type: n.type, name: n.name })))}
-    Connections: ${JSON.stringify(connections.map(c => ({ from: c.sourceId, to: c.targetId, label: c.label })))}
-    
-    IMPORTANT: Provide the response in CHINESE.
-    Provide a brief JSON summary.
-  `;
-
-  try {
-    // Using gemini-3-pro-preview for complex architectural analysis
-    const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            score: { type: Type.NUMBER, description: "Architecture health score 0-100" },
-            bottlenecks: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Performance bottlenecks in Chinese" },
-            recommendations: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Optimization recommendations in Chinese" }
-          },
-          required: ["score", "bottlenecks", "recommendations"]
-        }
-      }
-    });
-
-    return JSON.parse(response.text?.trim() || "{}");
-  } catch (error) {
-    console.error("AI Analysis failed:", error);
-    return null;
-  }
-}
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
 
 export async function suggestLayout(description: string) {
-    const prompt = `Based on the description: "${description}", generate a 3D topology layout.
-    Return a JSON object with nodes and connections. 
-    Positions should be roughly within -10 to 10 on X, Y, Z.
-    IMPORTANT: The node names and connection labels should be in CHINESE if applicable.`;
-
-    try {
-        // Using gemini-3-pro-preview for complex graph layout logic
-        const response = await ai.models.generateContent({
-            model: "gemini-3-pro-preview",
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        nodes: {
-                            type: Type.ARRAY,
-                            items: {
-                                type: Type.OBJECT,
-                                properties: {
-                                    name: { type: Type.STRING, description: "Name in Chinese" },
-                                    type: { type: Type.STRING, description: "database, server, gateway, cache, load_balancer, firewall" },
-                                    x: { type: Type.NUMBER },
-                                    y: { type: Type.NUMBER },
-                                    z: { type: Type.NUMBER }
-                                },
-                                required: ["name", "type", "x", "y", "z"]
-                            }
-                        },
-                        connections: {
-                            type: Type.ARRAY,
-                            items: {
-                                type: Type.OBJECT,
-                                properties: {
-                                    sourceIndex: { type: Type.INTEGER },
-                                    targetIndex: { type: Type.INTEGER },
-                                    label: { type: Type.STRING, description: "Label in Chinese" }
-                                },
-                                required: ["sourceIndex", "targetIndex", "label"]
-                            }
-                        }
-                    },
-                    required: ["nodes", "connections"]
-                }
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-pro-preview',
+    contents: `作为一名资深云架构师，请根据以下需求描述，规划一个合理的 2D 拓扑布局。
+    需求描述: ${description}
+    
+    输出要求:
+    1. 返回一个包含 nodes 和 connections 的 JSON 对象。
+    2. nodes 数组包含: name (服务名), type (取值范围: database, server, gateway, cache, load_balancer, firewall), x, y (坐标，建议在 0-20 之间)。
+    3. connections 数组包含: sourceIndex (起始节点索引), targetIndex (目标节点索引), label (连接描述)。`,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          nodes: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                name: { type: Type.STRING },
+                type: { type: Type.STRING },
+                x: { type: Type.NUMBER },
+                y: { type: Type.NUMBER }
+              },
+              required: ["name", "type", "x", "y"]
             }
-        });
-
-        return JSON.parse(response.text?.trim() || '{"nodes": [], "connections": []}');
-    } catch (error) {
-        console.error("AI Layout suggestion failed:", error);
-        return { nodes: [], connections: [] };
+          },
+          connections: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                sourceIndex: { type: Type.NUMBER },
+                targetIndex: { type: Type.NUMBER },
+                label: { type: Type.STRING }
+              },
+              required: ["sourceIndex", "targetIndex", "label"]
+            }
+          }
+        },
+        required: ["nodes", "connections"]
+      }
     }
+  });
+
+  try {
+    return JSON.parse(response.text || "{\"nodes\":[], \"connections\":[]}");
+  } catch (e) {
+    console.error("AI 响应解析失败", e);
+    return { nodes: [], connections: [] };
+  }
 }
