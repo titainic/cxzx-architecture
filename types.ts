@@ -9,6 +9,8 @@ export enum ServiceType {
   CONTAINER = 'container'
 }
 
+export type ConnectionStyle = 'signal' | 'fluid' | 'packet' | 'dashed';
+
 export interface Vector3Array {
   x: number;
   y: number;
@@ -39,7 +41,8 @@ export interface Connection {
   targetId: string;
   label: string;
   trafficLoad: number; // 0-1
-  status?: 'online' | 'warning' | 'error'; // 新增链路状态
+  status?: 'online' | 'warning' | 'error';
+  style?: ConnectionStyle; // 新增：链路视觉风格
 }
 
 export interface AppState {

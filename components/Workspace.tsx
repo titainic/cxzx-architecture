@@ -205,6 +205,17 @@ const Workspace: React.FC<WorkspaceProps> = ({
     backgroundPosition: `${viewOffset.x}px ${viewOffset.y}px`
   }), [viewOffset]);
 
+  // 辅助函数：根据样式获取动画类名
+  const getConnectionClass = (style: string = 'signal') => {
+    switch (style) {
+      case 'fluid': return 'connection-ekg'; // 原 Fluid -> 现 心电图
+      case 'packet': return 'connection-oscilloscope'; // 原 Packet -> 现 示波器
+      case 'dashed': return 'connection-flicker'; // 原 Dashed -> 现 频闪/跳动
+      case 'signal': 
+      default: return 'connection-signal';
+    }
+  };
+
   return (
     <div 
       ref={containerRef}
@@ -250,7 +261,6 @@ const Workspace: React.FC<WorkspaceProps> = ({
               <div className="absolute top-0 left-0 right-0 h-8 bg-slate-950/40 border-b border-slate-700/20 px-4 flex items-center justify-between pointer-events-none">
                 <div className="flex items-center gap-3">
                   <div className={`w-1.5 h-1.5 rounded-full ${group.status === 'online' ? 'bg-emerald-500' : group.status === 'warning' ? 'bg-amber-500' : 'bg-rose-500'} animate-pulse`}></div>
-                  {/* 修正：移除 uppercase，保留字间距样式 */}
                   <span className="text-[10px] font-black text-slate-400 tracking-[0.2em]">{group.name}</span>
                 </div>
                 <div className={`text-[8px] font-black px-2 py-0.5 rounded bg-slate-900 border ${statusConfig.border} ${statusConfig.color}`}>{statusConfig.text}</div>
@@ -299,12 +309,31 @@ const Workspace: React.FC<WorkspaceProps> = ({
             // 修复文字倒挂
             const textPathD = end.x < start.x ? getBezierPath(end, start) : bezierPath;
             
+            // 获取当前连线的动画类名
+            const animClass = getConnectionClass(conn.style);
+
             return (
               <g key={conn.id}>
                 <path d={bezierPath} stroke="transparent" strokeWidth="20" fill="none" className="cursor-pointer pointer-events-auto" onClick={(e) => { e.stopPropagation(); onConnectionClick(conn.id); }} />
                 {isSelected && <path d={bezierPath} stroke="white" strokeWidth="4" fill="none" className="opacity-20 animate-pulse" filter="url(#selection-glow)" />}
                 <path d={bezierPath} stroke={statusColor} strokeWidth="1.5" fill="none" className="opacity-10" />
-                <path d={bezierPath} stroke={statusColor} strokeWidth={isSelected ? "4" : "3"} fill="none" filter="url(#neon-glow)" className="connection-heartbeat" style={{ animationDuration: `${Math.max(0.4, 3.5 - conn.trafficLoad * 3)}s`, strokeDasharray: "60, 340", color: statusColor, strokeOpacity: isSelected ? 1 : 0.8 } as React.CSSProperties} />
+                
+                {/* 动态连线：应用不同的 className 实现不同特效 */}
+                <path 
+                  d={bezierPath} 
+                  stroke={statusColor} 
+                  strokeWidth={isSelected ? "4" : "3"} 
+                  fill="none" 
+                  filter="url(#neon-glow)" 
+                  className={animClass} 
+                  style={{ 
+                    // 仅对 signal 应用基于流量的动画速度，其他特效使用 CSS 定义的固定节奏
+                    animationDuration: conn.style === 'signal' ? `${Math.max(0.4, 3.5 - conn.trafficLoad * 3)}s` : undefined, 
+                    color: statusColor, 
+                    strokeOpacity: isSelected ? 1 : 0.8 
+                  } as React.CSSProperties} 
+                />
+                
                 <text className={`text-[8px] font-black tracking-widest transition-opacity ${isSelected ? 'opacity-100' : 'opacity-40'}`} fill={statusColor} dy="-8">
                    <textPath href={`#path-text-${conn.id}`} startOffset="50%" textAnchor="middle">{conn.label}</textPath>
                 </text>

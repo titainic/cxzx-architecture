@@ -47,8 +47,8 @@ const App: React.FC = () => {
         { id: 'g1', name: '生产集群-A', position: { x: 100, y: 150 }, size: { width: 500, height: 350 }, color: '#38bdf8', status: 'online' }
       ]);
       setConnections([
-        { id: 'c1', sourceId: '1', targetId: '2', label: 'HTTP 认证', trafficLoad: 0.4, status: 'online' },
-        { id: 'c2', sourceId: '2', targetId: '3', label: 'SQL 查询', trafficLoad: 0.8, status: 'online' },
+        { id: 'c1', sourceId: '1', targetId: '2', label: 'HTTP 认证', trafficLoad: 0.4, status: 'online', style: 'signal' },
+        { id: 'c2', sourceId: '2', targetId: '3', label: 'SQL 查询', trafficLoad: 0.8, status: 'online', style: 'fluid' },
       ]);
     }
   }, []);
@@ -176,7 +176,8 @@ const App: React.FC = () => {
           targetId: id,
           label: '新链路',
           trafficLoad: 0.2,
-          status: 'online'
+          status: 'online',
+          style: 'signal'
         }]);
         setConnectSourceId(null);
         setMode('select');
@@ -219,7 +220,8 @@ const App: React.FC = () => {
             targetId: newNodes[c.targetIndex].id,
             label: c.label,
             trafficLoad: Math.random() * 0.5,
-            status: 'online'
+            status: 'online',
+            style: 'signal'
         }));
 
         setNodes(newNodes);
@@ -267,21 +269,92 @@ const App: React.FC = () => {
           50% { opacity: 0.1; }
           100% { transform: translateY(100%); opacity: 0; }
         }
+        
+        /* 标准信号流动 */
         @keyframes signal-flow {
           0% { stroke-dashoffset: 400; }
           100% { stroke-dashoffset: 0; }
         }
+
+        /* 1. 心电图 (EKG) 特效核心动画 */
+        /* 位移动画：脉冲移动 */
+        @keyframes ekg-travel {
+          0% { stroke-dashoffset: 1000; }
+          100% { stroke-dashoffset: 0; }
+        }
+        /* 局部跳动动画：模拟尖峰波 */
+        @keyframes ekg-spike {
+          0%, 100% { 
+            stroke-width: 3px; 
+            filter: drop-shadow(0 0 2px currentColor);
+          }
+          10%, 30% { 
+            stroke-width: 5px; 
+            filter: drop-shadow(0 -6px 4px currentColor) brightness(1.5);
+          }
+          20% { 
+            stroke-width: 6px; 
+            filter: drop-shadow(0 4px 3px currentColor) brightness(1.8);
+          }
+          50% { 
+            stroke-width: 3px; 
+            filter: drop-shadow(0 0 2px currentColor);
+          }
+        }
+        
+        /* 2. 示波器特效 */
+        @keyframes oscilloscope-noise {
+          0% { stroke-dashoffset: 100; }
+          100% { stroke-dashoffset: 0; }
+        }
+        
+        /* 3. 频闪特效 */
+        @keyframes signal-flicker {
+          0%, 100% { opacity: 0.8; stroke-width: 3px; }
+          5% { opacity: 0.2; stroke-width: 2px; }
+          10% { opacity: 0.8; stroke-width: 3px; }
+          15% { opacity: 0.1; stroke-width: 1px; }
+          20% { opacity: 0.8; stroke-width: 3px; }
+          50% { opacity: 1; stroke-width: 3px; }
+          60% { opacity: 0.8; stroke-width: 3px; }
+        }
+
         .animate-strobe-green { animation: strobe-green 4s ease-in-out infinite; }
         .animate-strobe-yellow { animation: strobe-yellow 2.5s ease-in-out infinite; }
         .animate-strobe-red { animation: strobe-red 1.2s ease-in-out infinite; }
         .node-button { border-width: 2px; backdrop-filter: blur(12px); transition: transform 0.1s ease-out, filter 0.2s; }
         .node-button:hover { filter: brightness(1.25); z-index: 50; }
         .scan-effect { animation: scan-line 6s linear infinite; }
-        .connection-heartbeat {
+        
+        .connection-signal {
           stroke-dasharray: 60, 340;
           animation: signal-flow 3s linear infinite;
           stroke-linecap: round;
         }
+        
+        /* EKG 样式：一段具有跳动感的脉冲在路径上滑动 */
+        .connection-ekg {
+          stroke-dasharray: 40, 1000; /* 40px 的脉冲段 */
+          /* 同时运行位移动画和高频跳动动画 */
+          animation: 
+            ekg-travel 2.5s linear infinite, 
+            ekg-spike 0.8s cubic-bezier(0.1, 0.7, 0.1, 1) infinite;
+          stroke-linecap: round;
+          color: inherit;
+        }
+        
+        .connection-oscilloscope {
+          stroke-dasharray: 10, 5, 20, 10, 5, 5, 30, 20;
+          animation: oscilloscope-noise 0.5s linear infinite;
+          stroke-linecap: butt;
+        }
+        
+        .connection-flicker {
+          stroke-dasharray: 4, 4;
+          animation: signal-flicker 0.2s steps(4) infinite;
+          stroke-linecap: round;
+        }
+        
         .toast-enter { transform: translateY(-100%); opacity: 0; }
         .toast-enter-active { transform: translateY(0); opacity: 1; transition: all 0.3s ease-out; }
       `}</style>

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { ServiceNode, Connection, ServiceType, GroupNode } from '../types';
+import { ServiceNode, Connection, ServiceType, GroupNode, ConnectionStyle } from '../types';
 import { SERVICE_ICONS, SERVICE_COLORS } from '../constants';
 
 interface SidebarProps {
@@ -148,8 +148,28 @@ const Sidebar: React.FC<SidebarProps> = ({
                       />
                     </div>
 
+                    {/* 新增：链路样式选择 */}
                     <div className="space-y-1">
-                       <label className="text-[8px] text-slate-500 font-bold uppercase">物理链路状态</label>
+                       <label className="text-[8px] text-slate-500 font-bold uppercase">特效风格</label>
+                       <div className="grid grid-cols-2 gap-1 bg-slate-900/50 p-1 rounded-lg">
+                         {(['signal', 'fluid', 'packet', 'dashed'] as const).map(style => (
+                           <button 
+                            key={style}
+                            onClick={() => updateConnection(selectedConnection.id, { style: style })}
+                            className={`py-1 rounded text-[8px] font-black uppercase transition-all border ${
+                              selectedConnection.style === style || (!selectedConnection.style && style === 'signal')
+                              ? 'text-sky-400 bg-sky-500/20 border-sky-500/30 shadow-[0_0_10px_rgba(14,165,233,0.1)]'
+                              : 'text-slate-600 border-transparent hover:text-slate-400'
+                            }`}
+                           >
+                             {style === 'signal' ? '标准脉冲' : style === 'fluid' ? '心电图' : style === 'packet' ? '示波器' : '异常频闪'}
+                           </button>
+                         ))}
+                       </div>
+                    </div>
+
+                    <div className="space-y-1">
+                       <label className="text-[8px] text-slate-500 font-bold uppercase">物理状态</label>
                        <div className="grid grid-cols-2 gap-1 bg-slate-900/50 p-1 rounded-lg">
                          {(['online', 'error'] as const).map(s => (
                            <button 
