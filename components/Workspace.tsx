@@ -1,4 +1,3 @@
-
 import React, { useRef, useState, useMemo, useEffect } from 'react';
 import { ServiceNode, Connection, GroupNode } from '../types';
 import { SERVICE_ICONS, SERVICE_COLORS } from '../constants';
@@ -139,10 +138,10 @@ const Workspace: React.FC<WorkspaceProps> = ({
 
   const getStatusConfig = (status: string) => {
     switch(status) {
-      case 'online': return { text: 'RUNNING', color: 'text-emerald-400' };
-      case 'warning': return { text: 'STRESSED', color: 'text-amber-400' };
-      case 'error': return { text: 'OFFLINE', color: 'text-rose-400' };
-      default: return { text: 'RUNNING', color: 'text-emerald-400' };
+      case 'online': return { text: 'RUNNING', color: 'text-emerald-400', hex: '#34d399' };
+      case 'warning': return { text: 'STRESSED', color: 'text-amber-400', hex: '#fbbf24' };
+      case 'error': return { text: 'OFFLINE', color: 'text-rose-400', hex: '#fb7185' };
+      default: return { text: 'RUNNING', color: 'text-emerald-400', hex: '#34d399' };
     }
   };
 
@@ -193,7 +192,6 @@ const Workspace: React.FC<WorkspaceProps> = ({
         {groups.map((group) => (
           <div key={group.id} style={{ left: group.position.x, top: group.position.y, width: group.size.width, height: group.size.height, pointerEvents: 'auto' }} className={`absolute z-0 transition-all ${isLocked ? 'pointer-events-auto' : 'cursor-move'}`} onClick={(e) => { e.stopPropagation(); onElementClick(group.id); }} onMouseDown={(e) => { if (mode === 'select' && !isLocked) { e.stopPropagation(); setDraggingId(group.id); setDragType('group'); } }}>
             <div className={`absolute inset-0 rounded-3xl bg-slate-950/20 backdrop-blur-sm border transition-all duration-500 ${selectedId === group.id ? 'border-sky-500 shadow-[0_0_40px_rgba(14,165,233,0.1)]' : 'border-slate-800/40'} ${group.status === 'online' ? 'card-online' : group.status === 'warning' ? 'card-warning' : 'card-error'}`}>
-              {/* FIX: 集群容器名称渲染 */}
               <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between pointer-events-none">
                  <div className="flex flex-col">
                    <span className="text-[10px] font-black text-slate-100 uppercase tracking-widest">{group.name}</span>
@@ -202,7 +200,6 @@ const Workspace: React.FC<WorkspaceProps> = ({
                  <i className="fas fa-cubes text-slate-600 text-xs opacity-50"></i>
               </div>
             </div>
-            {/* Resizing handle */}
             {!isLocked && (
               <div className="absolute bottom-4 right-4 w-4 h-4 cursor-nwse-resize opacity-20 hover:opacity-100" onMouseDown={(e) => { e.stopPropagation(); setResizingId(group.id); }}>
                 <i className="fas fa-expand-arrows-alt text-xs text-sky-400"></i>
@@ -214,26 +211,63 @@ const Workspace: React.FC<WorkspaceProps> = ({
         <svg className="absolute inset-0 w-full h-full pointer-events-none z-[5]">
           <defs>
             <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="3" result="blur" /><feComposite in="SourceGraphic" in2="blur" operator="over" />
+              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
             </filter>
           </defs>
           {connections.map((conn) => {
             const points = getConnectionPoint(conn.sourceId, conn.targetId);
             if (!points) return null;
             const isSelected = selectedConnectionId === conn.id;
-            const color = conn.status === 'error' ? '#ef4444' : '#0ea5e9';
+            
+            // 路径流动参数映射：
+            // 绿色 (#00ff9d) 代表正常，红色 (#ff003c) 代表故障
+            const color = conn.status === 'error' ? '#ff003c' : '#00ff9d';
+            
+            // 将 0-1 的 trafficLoad 映射为流动周期时长 (flow-dur)
+            // 负载越高，周期越短 (流动越快)
+            const flowDur = 2.0 / (0.5 + conn.trafficLoad * 2.5);
+
+            const midX = (points.start.x + points.end.x) / 2;
+            const midY = (points.start.y + points.end.y) / 2;
+
             return (
               <g key={conn.id}>
                 <path d={getBezierPath(points.start, points.end)} stroke="transparent" strokeWidth="24" fill="none" className="cursor-pointer pointer-events-auto" onClick={(e) => { e.stopPropagation(); onConnectionClick(conn.id); }} />
+                
                 <path 
                   d={getBezierPath(points.start, points.end)} 
                   stroke={color} 
-                  strokeWidth={isSelected ? 4 : 2} 
+                  strokeWidth={isSelected ? 5 : 3} 
                   fill="none" 
-                  className={`${getConnectionClass(conn.style)} ${isSelected && conn.style === 'fluid' ? 'selected-jump' : ''}`} 
+                  className={`${getConnectionClass(conn.style)} ${isSelected ? 'selected-jump' : ''}`} 
                   filter="url(#glow)" 
-                  style={{ opacity: isSelected ? 1 : 0.4, color }} 
+                  style={{ 
+                    opacity: isSelected ? 1 : 0.75, 
+                    color,
+                    '--flow-dur': `${flowDur}s`
+                  } as React.CSSProperties} 
                 />
+
+                <text
+                  x={midX}
+                  y={midY - 8}
+                  textAnchor="middle"
+                  className="text-[9px] font-black fill-slate-300 pointer-events-none uppercase tracking-widest transition-opacity duration-300"
+                  style={{ 
+                    opacity: isSelected ? 1 : 0.6,
+                    paintOrder: 'stroke',
+                    stroke: '#020617',
+                    strokeWidth: '4px',
+                    strokeLinecap: 'round',
+                    strokeLinejoin: 'round'
+                  }}
+                >
+                  {conn.label}
+                </text>
               </g>
             );
           })}
@@ -246,7 +280,9 @@ const Workspace: React.FC<WorkspaceProps> = ({
             <div key={node.id} style={{ left: node.position.x, top: node.position.y, width: '130px', height: '44px', pointerEvents: 'auto' }} className="absolute z-10">
               <div className={`w-full h-full node-button rounded-xl flex items-center px-3 relative ${node.status === 'online' ? 'card-online' : node.status === 'warning' ? 'card-warning' : 'card-error'} ${isSelected ? 'ring-2 ring-sky-500/50 scale-105 z-20' : ''}`} onClick={(e) => { e.stopPropagation(); onElementClick(node.id); }} onMouseDown={(e) => { if (mode === 'select' && !isLocked) { e.stopPropagation(); setDraggingId(node.id); setDragType('node'); } }}>
                 <div className="flex items-center gap-3 w-full">
-                  <div className="w-8 h-8 rounded-lg bg-slate-900/50 flex items-center justify-center border border-white/5"><i className={`fas ${SERVICE_ICONS[node.type]} text-xs`} style={{ color: SERVICE_COLORS[node.type] }}></i></div>
+                  <div className="w-8 h-8 rounded-lg bg-slate-900/50 flex items-center justify-center border border-white/5">
+                    <i className={`fas ${SERVICE_ICONS[node.type]} text-xs transition-colors duration-300`} style={{ color: statusConfig.hex }}></i>
+                  </div>
                   <div className="flex flex-col min-w-0"><span className="text-[9px] font-black text-slate-100 truncate uppercase">{node.name}</span><span className={`text-[7px] font-bold ${statusConfig.color}`}>{statusConfig.text}</span></div>
                 </div>
               </div>

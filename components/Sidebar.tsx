@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { ServiceNode, Connection, ServiceType, GroupNode, ConnectionStyle } from '../types';
 import { SERVICE_ICONS, SERVICE_COLORS } from '../constants';
@@ -30,6 +29,15 @@ const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
   [ServiceType.LOAD_BALANCER]: '负载均衡',
   [ServiceType.FIREWALL]: '安全防火墙',
   [ServiceType.CONTAINER]: '集群容器'
+};
+
+const getHexColorByStatus = (status: string) => {
+  switch (status) {
+    case 'online': return '#34d399'; // emerald-400
+    case 'warning': return '#fbbf24'; // amber-400
+    case 'error': return '#fb7185'; // rose-400
+    default: return '#34d399';
+  }
 };
 
 const Sidebar: React.FC<SidebarProps> = ({ 
@@ -65,10 +73,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <section className="bg-gradient-to-br from-indigo-950/40 to-slate-900/60 p-4 rounded-2xl border border-sky-500/30 shadow-2xl relative overflow-hidden group">
                   <div className="flex items-start justify-between mb-4">
                     <div>
-                      <p className="text-[8px] text-sky-500 font-black uppercase tracking-[0.2em] mb-1">Inspector // 实例审查</p>
+                      <p className="text-[8px] text-sky-500 font-black uppercase tracking-[0.2em] mb-1">服务详情</p>
                       <h4 className="font-black text-sm text-white truncate max-w-[180px]">{selectedNode.name}</h4>
                     </div>
-                    <div className={`w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-sm shadow-inner border border-slate-800`} style={{ color: SERVICE_COLORS[selectedNode.type] }}>
+                    <div className={`w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-sm shadow-inner border border-slate-800 transition-colors duration-300`} style={{ color: getHexColorByStatus(selectedNode.status) }}>
                        <i className={`fas ${SERVICE_ICONS[selectedNode.type]}`}></i>
                     </div>
                   </div>
@@ -104,7 +112,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                       <p className="text-[8px] text-indigo-400 font-black uppercase tracking-[0.2em] mb-1">Container // 集群容器审查</p>
                       <h4 className="font-black text-sm text-white truncate max-w-[180px]">{selectedGroup.name}</h4>
                     </div>
-                    <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-sm shadow-inner border border-slate-800 text-indigo-400">
+                    <div className={`w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-sm shadow-inner border border-slate-800 transition-colors duration-300`} style={{ color: getHexColorByStatus(selectedGroup.status) }}>
                        <i className="fas fa-cubes"></i>
                     </div>
                   </div>
@@ -252,7 +260,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                           : 'text-slate-600 hover:text-slate-400'
                         }`}
                        >
-                         {/* FIX: Removed redundant s === 'warning' check that caused build error */}
                          <span className={`w-1 h-1 rounded-full ${s === 'online' ? 'bg-emerald-400' : s === 'warning' ? 'bg-amber-400' : 'bg-rose-400'}`}></span>
                          {s === 'online' ? '正常' : s === 'warning' ? '警告' : '故障'}
                        </button>
@@ -271,7 +278,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                         : 'bg-slate-900/50 border-slate-800/50 text-slate-600 hover:text-slate-400'
                       }`}
                     >
-                      <i className={`fas ${SERVICE_ICONS[t]} text-xs mb-1`}></i>
+                      <i className={`fas ${SERVICE_ICONS[t]} text-xs mb-1 transition-colors duration-300`} style={{ color: getHexColorByStatus(activePresetStatus) }}></i>
                       <span className="text-[7px] font-bold truncate w-full px-1 text-center">{SERVICE_TYPE_LABELS[t]}</span>
                     </button>
                   ))}

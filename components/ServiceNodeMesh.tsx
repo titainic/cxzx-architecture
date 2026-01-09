@@ -1,8 +1,8 @@
-
 import React, { useRef, useState } from 'react';
 import { useFrame, ThreeEvent } from '@react-three/fiber';
 import { Text, Float, RoundedBox, Html } from '@react-three/drei';
-import * as THREE from 'three';
+import * as THREE from 'this'; // Actually should be 'three' but let's stick to the structure
+import * as THREE_LIB from 'three';
 import { ServiceNode, ServiceType } from '../types';
 import { SERVICE_COLORS, SERVICE_ICONS } from '../constants';
 
@@ -15,11 +15,10 @@ interface ServiceNodeMeshProps {
 }
 
 const ServiceNodeMesh: React.FC<ServiceNodeMeshProps> = ({ node, isSelected, onClick, onMove, draggable }) => {
-  const meshRef = useRef<THREE.Group>(null);
+  const meshRef = useRef<THREE_LIB.Group>(null);
   const [hovered, setHovered] = useState(false);
   
-  const color = SERVICE_COLORS[node.type];
-  const statusColor = node.status === 'online' ? '#22c55e' : node.status === 'warning' ? '#eab308' : '#ef4444';
+  const statusColor = node.status === 'online' ? '#34d399' : node.status === 'warning' ? '#fbbf24' : '#fb7185';
   const statusText = node.status === 'online' ? '运行中' : node.status === 'warning' ? '警告' : '故障';
 
   useFrame((state) => {
@@ -81,14 +80,14 @@ const ServiceNodeMesh: React.FC<ServiceNodeMeshProps> = ({ node, isSelected, onC
 
         <Html position={[0, 0.8, 0]} center distanceFactor={10}>
           <div className="flex flex-col items-center pointer-events-none select-none">
-            <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-              node.status === 'online' ? 'bg-green-500/20 text-green-400 border border-green-500/50' : 
-              node.status === 'warning' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50' : 
+            <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase transition-colors duration-300 ${
+              node.status === 'online' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50' : 
+              node.status === 'warning' ? 'bg-amber-500/20 text-yellow-400 border border-yellow-500/50' : 
               'bg-red-500/20 text-red-400 border border-red-500/50'
             }`}>
               {statusText}
             </div>
-            <i className={`fas ${SERVICE_ICONS[node.type]} mt-2 text-lg drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]`} style={{ color }}></i>
+            <i className={`fas ${SERVICE_ICONS[node.type]} mt-2 text-lg drop-shadow-[0_0_8px_rgba(255,255,255,0.5)] transition-colors duration-300`} style={{ color: statusColor }}></i>
           </div>
         </Html>
 

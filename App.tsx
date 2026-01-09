@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import UIOverlay from './components/UIOverlay';
@@ -51,8 +50,8 @@ const App: React.FC = () => {
         { id: 'g1', name: '核心业务区', position: { x: 300, y: 200 }, size: { width: 600, height: 450 }, color: '#38bdf8', status: 'online' }
       ]);
       setConnections([
-        { id: 'c1', sourceId: 'n1', targetId: 'n2', label: 'SSL/TLS', trafficLoad: 0.3, status: 'online', style: 'signal' },
-        { id: 'c2', sourceId: 'n2', targetId: 'n3', label: 'DB_POOL', trafficLoad: 0.8, status: 'online', style: 'fluid' },
+        { id: 'c1', sourceId: 'n1', targetId: 'n2', label: 'SSL/TLS', trafficLoad: 0.2, status: 'online', style: 'signal' },
+        { id: 'c2', sourceId: 'n2', targetId: 'n3', label: 'DB_POOL', trafficLoad: 0.6, status: 'online', style: 'fluid' },
       ]);
     }
   }, []);
@@ -88,6 +87,103 @@ const App: React.FC = () => {
     setSelectedId(null);
   }, []);
 
+  const handleUpdateNode = useCallback((id: string, x: number, y: number) => {
+    setNodes(prev => prev.map(n => n.id === id ? { ...n, position: { ...n.position, x, y } } : n));
+  }, []);
+
+  const handleUpdateGroup = useCallback((id: string, updates: Partial<GroupNode>) => {
+    setGroups(prev => prev.map(g => g.id === id ? { ...g, ...updates } : g));
+  }, []);
+
+  const handleAddNode = (type: ServiceType, name: string, status: 'online' | 'warning' | 'error') => {
+    const newNode: ServiceNode = {
+      id: `node-${Date.now()}`,
+      name,
+      type,
+      position: { x: 100, y: 100, z: 0 },
+      status,
+      lastUpdated: new Date().toISOString()
+    };
+    setNodes(prev => [...prev, newNode]);
+    showToast(`服务 ${name} 已部署`);
+  };
+
+  const handleAddGroup = (name: string, status: 'online' | 'warning' | 'error') => {
+    const newGroup: GroupNode = {
+      id: `group-${Date.now()}`,
+      name,
+      position: { x: 50, y: 50 },
+      size: { width: 300, height: 200 },
+      color: '#38bdf8',
+      status
+    };
+    setGroups(prev => [...prev, newGroup]);
+    showToast(`容器 ${name} 已创建`);
+  };
+
+  const handleDeleteConnection = (id: string) => {
+    setConnections(prev => prev.filter(c => c.id !== id));
+    setSelectedConnectionId(null);
+  };
+
+  const handleUpdateConnection = (id: string, updates: Partial<Connection>) => {
+    setConnections(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+  };
+
+  const handleElementClick = (id: string) => {
+    if (mode === 'connect') {
+      if (!connectSourceId) {
+        setConnectSourceId(id);
+      } else if (connectSourceId !== id) {
+        const newConn: Connection = {
+          id: `conn-${Date.now()}`,
+          sourceId: connectSourceId,
+          targetId: id,
+          label: 'NEW_LINK',
+          trafficLoad: 0.1,
+          status: 'online',
+          style: 'signal'
+        };
+        setConnections(prev => [...prev, newConn]);
+        setConnectSourceId(null);
+        setMode('select');
+        showToast("链路已建立");
+      }
+    } else {
+      setSelectedId(id);
+      setSelectedConnectionId(null);
+    }
+  };
+
+  const handleExport = () => {
+    const data = JSON.stringify({ nodes, groups, connections }, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `neoops-layout-${Date.now()}.json`;
+    a.click();
+    showToast("配置已导出");
+  };
+
+  const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target?.result as string);
+        setNodes(parsed.nodes || []);
+        setGroups(parsed.groups || []);
+        setConnections(parsed.connections || []);
+        showToast("配置导入成功");
+      } catch (err) {
+        showToast("非法配置文件");
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const handleAutoLayout = async (desc: string) => {
     if (!desc || isLocked) return;
     setIsAnalyzing(true);
@@ -114,7 +210,7 @@ const App: React.FC = () => {
       setConnections(newConns);
       showToast("AI 拓扑已生成");
     } catch (e) {
-      showToast("AI 服务请求超时");
+      showToast("AI 服务异常");
     }
     setIsAnalyzing(false);
   };
@@ -122,20 +218,18 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen w-screen bg-[#020617] text-slate-100 overflow-hidden font-sans antialiased">
       <style>{`
-        /* --- 节点背景闪烁特效 --- */
+        /* --- 节点基础背景 --- */
         @keyframes bg-pulse-green {
-          0%, 100% { background: rgba(16, 185, 129, 0.05); border-color: rgba(16, 185, 129, 0.2); box-shadow: inset 0 0 10px rgba(16, 185, 129, 0.05); }
-          50% { background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.5); box-shadow: inset 0 0 20px rgba(16, 185, 129, 0.1), 0 0 15px rgba(16, 185, 129, 0.2); }
+          0%, 100% { background: rgba(16, 185, 129, 0.05); border-color: rgba(16, 185, 129, 0.2); }
+          50% { background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.5); }
         }
-
         @keyframes bg-pulse-yellow {
-          0%, 100% { background: rgba(245, 158, 11, 0.05); border-color: rgba(245, 158, 11, 0.2); box-shadow: inset 0 0 10px rgba(245, 158, 11, 0.05); }
-          50% { background: rgba(245, 158, 11, 0.25); border-color: rgba(245, 158, 11, 0.6); box-shadow: inset 0 0 25px rgba(245, 158, 11, 0.2), 0 0 20px rgba(245, 158, 11, 0.3); }
+          0%, 100% { background: rgba(245, 158, 11, 0.05); border-color: rgba(245, 158, 11, 0.2); }
+          50% { background: rgba(245, 158, 11, 0.25); border-color: rgba(245, 158, 11, 0.6); }
         }
-
         @keyframes bg-pulse-red {
-          0%, 100% { background: rgba(244, 63, 94, 0.1); border-color: rgba(244, 63, 94, 0.3); box-shadow: inset 0 0 15px rgba(244, 63, 94, 0.1); }
-          50% { background: rgba(244, 63, 94, 0.4); border-color: rgba(244, 63, 94, 0.8); box-shadow: inset 0 0 35px rgba(244, 63, 94, 0.3), 0 0 30px rgba(244, 63, 94, 0.5); }
+          0%, 100% { background: rgba(244, 63, 94, 0.1); border-color: rgba(244, 63, 94, 0.3); }
+          50% { background: rgba(244, 63, 94, 0.4); border-color: rgba(244, 63, 94, 0.8); }
         }
 
         .card-online { animation: bg-pulse-green 4s ease-in-out infinite; }
@@ -147,176 +241,133 @@ const App: React.FC = () => {
           -webkit-backdrop-filter: blur(16px);
           border: 1px solid rgba(255, 255, 255, 0.05);
           transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-          overflow: hidden;
         }
 
-        .node-button:hover {
-          transform: translateY(-2px) scale(1.02);
+        /**
+         * --- 拓扑连线特效 (Visual FX) ---
+         */
+
+        /* 1. 标准脉冲 (Signal) */
+        @keyframes signal-ultra-flow { 
+          0% { stroke-dashoffset: 600; filter: drop-shadow(0 0 2px currentColor); } 
+          50% { filter: drop-shadow(0 0 12px currentColor); }
+          100% { stroke-dashoffset: 0; filter: drop-shadow(0 0 2px currentColor); } 
+        }
+        .connection-signal { 
+          stroke-dasharray: 40, 20, 5, 20, 15, 60; 
+          stroke-linecap: round; 
+          animation: signal-ultra-flow 4s linear infinite; 
+          stroke-width: 3px;
         }
 
-        /* --- 拓扑连线动效升级 --- */
-        @keyframes signal-run { 0% { stroke-dashoffset: 400; } 100% { stroke-dashoffset: 0; } }
-        @keyframes ekg-move { 0% { stroke-dashoffset: 1200; } 100% { stroke-dashoffset: 0; } }
-        
-        /* 高级心电图动力学 */
-        @keyframes ekg-dynamic {
-          0%, 12%, 48%, 100% { 
-            transform: translateY(0) scaleY(1);
-            stroke-width: 2px;
-            opacity: 0.3;
-          }
-          15% { /* P波 */
-            transform: translateY(-3px);
-            opacity: 0.7;
-          }
-          19% { /* Q点 */
-            transform: translateY(2px);
-          }
-          22% { /* R波: 极速爆发 */
-            transform: translateY(-20px) scaleY(2.5);
-            stroke-width: 7px;
-            opacity: 1;
-            filter: drop-shadow(0 0 15px currentColor) brightness(2.5);
-          }
-          25% { /* S点: 极速回落 */
-            transform: translateY(5px) scaleY(1.5);
-            stroke-width: 4px;
-          }
-          35% { /* T波: 优雅回弹 */
-            transform: translateY(-6px) scaleY(1.2);
-            stroke-width: 3px;
-            opacity: 0.8;
-          }
+        /* 2. 路径流动特效 (Path Packet Flow) - 代替原有的心电图律动 */
+        @keyframes path-packet-transmit {
+          from { stroke-dashoffset: 100; }
+          to { stroke-dashoffset: 0; }
         }
 
-        /* 选中状态的高频电子抖动 */
-        @keyframes selected-jitter {
-          0%, 100% { filter: brightness(1.2) drop-shadow(0 0 8px currentColor); }
-          20% { transform: translate(1px, -1px); filter: brightness(2) drop-shadow(2px 0 4px #f43f5e) drop-shadow(-2px 0 4px #0ea5e9); }
-          40% { transform: translate(-1.2px, 0.8px); filter: brightness(1.6) drop-shadow(-2px 0 6px #10b981); }
-          60% { transform: translate(0.5px, 1.2px); filter: brightness(2.2) drop-shadow(0 2px 8px #f59e0b); }
-          80% { transform: translate(-0.8px, -0.5px); filter: brightness(1.8) drop-shadow(0 -2px 10px #a78bfa); }
+        @keyframes packet-glow-pulse {
+          0%, 100% { filter: drop-shadow(0 0 2px currentColor); opacity: 0.5; }
+          50% { filter: drop-shadow(0 0 8px currentColor) drop-shadow(0 0 12px currentColor); opacity: 1; }
         }
 
-        .connection-signal { stroke-dasharray: 60, 340; animation: signal-run 3s linear infinite; }
-        
         .connection-ekg { 
-          stroke-dasharray: 90, 1110; 
-          animation: 
-            ekg-move 3.4s linear infinite, 
-            ekg-dynamic 1.7s cubic-bezier(0.16, 1, 0.3, 1) infinite; 
+          /* 线条段落化：12px 线段代表数据包，24px 间隙 */
+          stroke-dasharray: 12, 24; 
           stroke-linecap: round;
-          transform-box: fill-box;
-          transform-origin: center;
-          will-change: transform, stroke-width, filter;
-        }
-
-        .connection-ekg.selected-jump {
+          /* 线性流动动画：利用 stroke-dashoffset 实现沿路径移动 */
           animation: 
-            ekg-move 1.7s linear infinite, 
-            ekg-dynamic 0.85s cubic-bezier(0.16, 1, 0.3, 1) infinite,
-            selected-jitter 0.12s steps(2) infinite !important;
-          stroke-width: 6px;
-          opacity: 1 !important;
+            path-packet-transmit var(--flow-dur, 1.2s) linear infinite,
+            packet-glow-pulse 2s ease-in-out infinite;
+          will-change: stroke-dashoffset, filter, opacity;
         }
 
-        @keyframes scope-noise { 0% { stroke-dashoffset: 80; filter: brightness(1); } 100% { stroke-dashoffset: 0; filter: brightness(1.5); } }
-        @keyframes pulse-flicker { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; stroke-width: 4px; } }
-
-        .connection-oscilloscope { stroke-dasharray: 12, 6, 20, 4; animation: scope-noise 0.4s steps(5) infinite; stroke-linecap: square; }
-        .connection-flicker { stroke-dasharray: 6, 2; animation: pulse-flicker 0.15s ease-in-out infinite; stroke-width: 3px; }
-        
-        .scanline {
-           position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-           background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%);
-           background-size: 100% 4px;
-           z-index: 60; pointer-events: none; opacity: 0.08;
+        /* 3. 示波器干扰 (Oscilloscope) */
+        @keyframes oscilloscope-glitch {
+          0%, 100% { stroke-dashoffset: 0; opacity: 1; }
+          50% { stroke-dashoffset: 40; opacity: 0.7; }
         }
+        .connection-oscilloscope { stroke-dasharray: 2, 8; animation: oscilloscope-glitch 0.2s steps(2) infinite; }
+
+        /* 4. 异常频闪 (Flicker) */
+        @keyframes flicker-error {
+          0%, 100% { opacity: 1; stroke-width: 3px; }
+          33% { opacity: 0.1; stroke-width: 1px; }
+          66% { opacity: 0.5; stroke-width: 5px; }
+        }
+        .connection-flicker { stroke-dasharray: 10, 5; animation: flicker-error 0.4s ease-in-out infinite; }
+
+        /* 选中态样式：将 animation-duration 修改为 3.0s 以减慢流动速度 */
+        .selected-jump { 
+          stroke-width: 6px !important; 
+          filter: drop-shadow(0 0 20px #fff) !important; 
+          animation-duration: 3.0s !important; 
+        }
+
+        /* Custom Scrollbar */
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(56, 189, 248, 0.2); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(56, 189, 248, 0.4); }
       `}</style>
 
-      <div className="scanline"></div>
-
-      {toast.visible && (
-        <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[100] bg-slate-900/90 border border-sky-500/30 px-6 py-2 rounded-full shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-top-4">
-          <span className="text-[10px] font-bold text-sky-400 uppercase tracking-[0.2em]">{toast.message}</span>
-        </div>
-      )}
-
-      <input type="file" ref={fileInputRef} onChange={(e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          try {
-            const parsed = JSON.parse(event.target?.result as string);
-            if (parsed.nodes) {
-              setNodes(parsed.nodes);
-              setGroups(parsed.groups || []);
-              setConnections(parsed.connections || []);
-              showToast("配置文件已导入");
-            }
-          } catch { showToast("无效的格式"); }
-        };
-        reader.readAsText(file);
-      }} className="hidden" accept=".json" />
-
       <Sidebar 
-        nodes={nodes} groups={groups} connections={connections}
-        selectedId={selectedId} selectedConnectionId={selectedConnectionId}
-        addNode={(type, name, status) => setNodes(prev => [...prev, { id: `n-${Date.now()}`, name, type, position: { x: 200, y: 200, z: 0 }, status, lastUpdated: new Date().toISOString() }])}
-        addGroup={(name, status) => setGroups(prev => [...prev, { id: `g-${Date.now()}`, name, position: { x: 200, y: 200 }, size: { width: 450, height: 350 }, color: '#818cf8', status }])}
+        nodes={nodes}
+        groups={groups}
+        connections={connections}
+        selectedId={selectedId}
+        selectedConnectionId={selectedConnectionId}
+        addNode={handleAddNode}
+        addGroup={handleAddGroup}
         deleteNode={handleDeleteNode}
         deleteGroup={handleDeleteGroup}
-        deleteConnection={(id) => { setConnections(c => c.filter(x => x.id !== id)); setSelectedConnectionId(null); }}
-        updateConnection={(id, updates) => setConnections(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c))}
-        isAnalyzing={isAnalyzing} onAutoLayout={handleAutoLayout}
-        isLocked={isLocked} onExport={() => {
-            const data = { nodes, groups, connections, timestamp: new Date().toISOString() };
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url; link.download = 'topology-config.json'; link.click();
-            showToast("配置已导出");
-        }}
+        deleteConnection={handleDeleteConnection}
+        updateConnection={handleUpdateConnection}
+        isAnalyzing={isAnalyzing}
+        onAutoLayout={handleAutoLayout}
+        isLocked={isLocked}
+        onExport={handleExport}
         onImport={() => fileInputRef.current?.click()}
       />
-      
-      <main className="flex-1 relative overflow-hidden bg-[radial-gradient(circle_at_50%_50%,_#0f172a_0%,_#020617_100%)]">
+
+      <main className="flex-1 relative flex flex-col">
         <UIOverlay 
-          mode={mode} 
-          setMode={setMode} 
-          connectSource={nodes.find(n => n.id === connectSourceId)?.name || groups.find(g => g.id === connectSourceId)?.name} 
-          isLocked={isLocked} 
-          setIsLocked={toggleLock} 
+          mode={mode}
+          setMode={setMode}
+          connectSource={nodes.find(n => n.id === connectSourceId)?.name}
+          isLocked={isLocked}
+          setIsLocked={toggleLock}
         />
         
         <Workspace 
-          nodes={nodes} groups={groups} connections={connections}
-          selectedId={selectedId} selectedConnectionId={selectedConnectionId}
-          onElementClick={(id) => {
-            if (mode === 'connect' && !isLocked) {
-              if (!connectSourceId) setConnectSourceId(id);
-              else {
-                setConnections(prev => [...prev, { id: `c-${Date.now()}`, sourceId: connectSourceId, targetId: id, label: 'AUTH_TRAFFIC', trafficLoad: 0.2, style: 'signal' }]);
-                setConnectSourceId(null); setMode('select');
-              }
-            } else { setSelectedId(id === selectedId ? null : id); setSelectedConnectionId(null); }
-          }}
-          onConnectionClick={(id) => { setSelectedConnectionId(id === selectedConnectionId ? null : id); setSelectedId(null); }}
-          onNodeMove={(id, x, y) => !isLocked && setNodes(prev => prev.map(n => n.id === id ? { ...n, position: { ...n.position, x, y } } : n))}
-          onUpdateGroup={(id, updates) => !isLocked && setGroups(prev => prev.map(g => g.id === id ? { ...g, ...updates } : g))}
+          nodes={nodes}
+          groups={groups}
+          connections={connections}
+          selectedId={selectedId}
+          selectedConnectionId={selectedConnectionId}
+          onElementClick={handleElementClick}
+          onConnectionClick={(id) => { setSelectedConnectionId(id); setSelectedId(null); }}
+          onNodeMove={handleUpdateNode}
+          onUpdateGroup={handleUpdateGroup}
           onDeleteGroup={handleDeleteGroup}
           onDeleteNode={handleDeleteNode}
-          mode={mode} isLocked={isLocked}
+          mode={mode}
+          isLocked={isLocked}
         />
 
-        {isAnalyzing && (
-            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md">
-                <div className="flex flex-col items-center gap-6">
-                    <div className="w-16 h-16 border-2 border-sky-500/20 border-t-sky-500 rounded-full animate-spin"></div>
-                    <p className="text-sky-400 font-mono text-[10px] font-black tracking-[0.8em] animate-pulse">SYNTHESIZING_TOPOLOGY...</p>
-                </div>
-            </div>
+        <input 
+          type="file" 
+          ref={fileInputRef} 
+          className="hidden" 
+          accept=".json" 
+          onChange={handleFileImport} 
+        />
+
+        {toast.visible && (
+          <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 bg-slate-900 border border-sky-500/50 px-6 py-3 rounded-2xl shadow-2xl text-xs font-bold animate-in fade-in slide-in-from-bottom-4">
+             <span className="bg-sky-500 text-slate-950 px-1.5 py-0.5 rounded mr-2 uppercase text-[10px]">Info</span>
+             {toast.message}
+          </div>
         )}
       </main>
     </div>
