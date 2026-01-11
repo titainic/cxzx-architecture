@@ -41,10 +41,9 @@ const Workspace: React.FC<WorkspaceProps> = ({
   const [resizingId, setResizingId] = useState<string | null>(null);
   const [dragType, setDragType] = useState<'node' | 'group' | 'scroll-h' | 'scroll-v'>('node');
 
-  // 动态计算虚拟画布的边界
   const contentBounds = useMemo(() => {
     if (nodes.length === 0 && groups.length === 0) {
-      return { minX: -2000, maxX: 2000, minY: -2000, maxY: 2000 };
+      return { minX: -2000, maxX: 2000, minY: -2000, maxY: 2000, width: 4000, height: 4000 };
     }
     let minX = 0, maxX = 1000, minY = 0, maxY = 1000;
     nodes.forEach(n => {
@@ -168,13 +167,17 @@ const Workspace: React.FC<WorkspaceProps> = ({
     return { start: getIntersection(s, { x: t.cx, y: t.cy }), end: getIntersection(t, { x: s.cx, y: s.cy }) };
   };
 
-  const getBezierPath = (start: {x: number, y: number}, end: {x: number, y: number}) => {
-    const dx = Math.abs(end.x - start.x);
-    const dy = Math.abs(end.y - start.y);
-    const horizontal = dx > dy;
-    const ctrl1 = horizontal ? { x: start.x + dx / 4, y: start.y } : { x: start.x, y: start.y + dy / 4 };
-    const ctrl2 = horizontal ? { x: end.x - dx / 4, y: end.y } : { x: end.x, y: end.y - dy / 4 };
-    return `M ${start.x} ${start.y} C ${ctrl1.x} ${ctrl1.y}, ${ctrl2.x} ${ctrl2.y}, ${end.x} ${end.y}`;
+  const getBezierPath = (start: {x: number, y: number}, end: {x: number, y: number}, offset: number = 0) => {
+    const midX = (start.x + end.x) / 2;
+    const midY = (start.y + end.y) / 2;
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const length = Math.sqrt(dx * dx + dy * dy) || 1;
+    const nx = -dy / length;
+    const ny = dx / length;
+    const ctrlX = midX + nx * offset;
+    const ctrlY = midY + ny * offset;
+    return `M ${start.x} ${start.y} Q ${ctrlX} ${ctrlY}, ${end.x} ${end.y}`;
   };
 
   const getConnectionClass = (style: string | undefined) => {
@@ -186,9 +189,29 @@ const Workspace: React.FC<WorkspaceProps> = ({
     }
   };
 
+  const connectionGroups = useMemo(() => {
+    const groups: Record<string, Connection[]> = {};
+    connections.forEach(conn => {
+      const pairKey = [conn.sourceId, conn.targetId].sort().join('_');
+      if (!groups[pairKey]) groups[pairKey] = [];
+      groups[pairKey].push(conn);
+    });
+    return groups;
+  }, [connections]);
+
   return (
     <div ref={containerRef} className={`w-full h-full relative select-none overflow-hidden ${isPanning ? 'cursor-grabbing' : 'cursor-default'}`} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onWheel={handleWheel} style={{ backgroundImage: `linear-gradient(to right, rgba(14, 165, 233, 0.04) 1px, transparent 1px), linear-gradient(to bottom, rgba(14, 165, 233, 0.04) 1px, transparent 1px)`, backgroundSize: '40px 40px', backgroundPosition: `${viewOffset.x}px ${viewOffset.y}px` }}>
-      <div style={{ transform: `translate(${viewOffset.x}px, ${viewOffset.y}px)`, position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+      {/* 修正：取消容器宽高限制，确保右侧内容不会被裁剪 */}
+      <div style={{ 
+        transform: `translate(${viewOffset.x}px, ${viewOffset.y}px)`, 
+        position: 'absolute', 
+        top: 0, 
+        left: 0, 
+        width: `${Math.max(contentBounds.maxX, 2000)}px`, 
+        height: `${Math.max(contentBounds.maxY, 2000)}px`,
+        pointerEvents: 'none',
+        overflow: 'visible'
+      }}>
         {groups.map((group) => (
           <div key={group.id} style={{ left: group.position.x, top: group.position.y, width: group.size.width, height: group.size.height, pointerEvents: 'auto' }} className={`absolute z-0 transition-all ${isLocked ? 'pointer-events-auto' : 'cursor-move'}`} onClick={(e) => { e.stopPropagation(); onElementClick(group.id); }} onMouseDown={(e) => { if (mode === 'select' && !isLocked) { e.stopPropagation(); setDraggingId(group.id); setDragType('group'); } }}>
             <div className={`absolute inset-0 rounded-3xl bg-slate-950/20 backdrop-blur-sm border transition-all duration-500 ${selectedId === group.id ? 'border-sky-500 shadow-[0_0_40px_rgba(14,165,233,0.1)]' : 'border-slate-800/40'} ${group.status === 'online' ? 'card-online' : group.status === 'warning' ? 'card-warning' : 'card-error'}`}>
@@ -208,9 +231,13 @@ const Workspace: React.FC<WorkspaceProps> = ({
           </div>
         ))}
 
-        <svg className="absolute inset-0 w-full h-full pointer-events-none z-[5]">
+        {/* 修正：SVG 显式设置 overflow: visible 并动态调整尺寸 */}
+        <svg 
+          className="absolute top-0 left-0 pointer-events-none z-[5]" 
+          style={{ width: '100%', height: '100%', overflow: 'visible' }}
+        >
           <defs>
-            <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+            <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
               <feGaussianBlur stdDeviation="3" result="blur" />
               <feMerge>
                 <feMergeNode in="blur" />
@@ -218,58 +245,72 @@ const Workspace: React.FC<WorkspaceProps> = ({
               </feMerge>
             </filter>
           </defs>
-          {connections.map((conn) => {
-            const points = getConnectionPoint(conn.sourceId, conn.targetId);
-            if (!points) return null;
-            const isSelected = selectedConnectionId === conn.id;
-            
-            // 路径流动参数映射：
-            // 绿色 (#00ff9d) 代表正常，红色 (#ff003c) 代表故障
-            const color = conn.status === 'error' ? '#ff003c' : '#00ff9d';
-            
-            // 将 0-1 的 trafficLoad 映射为流动周期时长 (flow-dur)
-            // 负载越高，周期越短 (流动越快)
-            const flowDur = 2.0 / (0.5 + conn.trafficLoad * 2.5);
+          {(Object.entries(connectionGroups) as [string, Connection[]][]).map(([pairKey, groupConns]) => {
+            return groupConns.map((conn, index) => {
+              const points = getConnectionPoint(conn.sourceId, conn.targetId);
+              if (!points) return null;
+              const isSelected = selectedConnectionId === conn.id;
+              
+              const color = conn.status === 'error' ? '#ff003c' : '#00ff9d';
+              const flowDur = 2.0 / (0.5 + conn.trafficLoad * 2.5);
 
-            const midX = (points.start.x + points.end.x) / 2;
-            const midY = (points.start.y + points.end.y) / 2;
+              let curveOffset = 0;
+              if (groupConns.length > 1) {
+                const step = 30;
+                const midIdx = Math.floor(groupConns.length / 2);
+                curveOffset = (index - midIdx) * step;
+                if (groupConns.length % 2 === 0) curveOffset += step / 2;
+              }
+              
+              if (conn.sourceId > conn.targetId) curveOffset *= -1;
 
-            return (
-              <g key={conn.id}>
-                <path d={getBezierPath(points.start, points.end)} stroke="transparent" strokeWidth="24" fill="none" className="cursor-pointer pointer-events-auto" onClick={(e) => { e.stopPropagation(); onConnectionClick(conn.id); }} />
-                
-                <path 
-                  d={getBezierPath(points.start, points.end)} 
-                  stroke={color} 
-                  strokeWidth={isSelected ? 5 : 3} 
-                  fill="none" 
-                  className={`${getConnectionClass(conn.style)} ${isSelected ? 'selected-jump' : ''}`} 
-                  filter="url(#glow)" 
-                  style={{ 
-                    opacity: isSelected ? 1 : 0.75, 
-                    color,
-                    '--flow-dur': `${flowDur}s`
-                  } as React.CSSProperties} 
-                />
+              const pathData = getBezierPath(points.start, points.end, curveOffset);
+              const midX = (points.start.x + points.end.x) / 2;
+              const midY = (points.start.y + points.end.y) / 2;
+              
+              const dx = points.end.x - points.start.x;
+              const dy = points.end.y - points.start.y;
+              const length = Math.sqrt(dx * dx + dy * dy) || 1;
+              const labelX = midX + (-dy / length) * (curveOffset * 0.6);
+              const labelY = midY + (dx / length) * (curveOffset * 0.6);
 
-                <text
-                  x={midX}
-                  y={midY - 8}
-                  textAnchor="middle"
-                  className="text-[9px] font-black fill-slate-300 pointer-events-none uppercase tracking-widest transition-opacity duration-300"
-                  style={{ 
-                    opacity: isSelected ? 1 : 0.6,
-                    paintOrder: 'stroke',
-                    stroke: '#020617',
-                    strokeWidth: '4px',
-                    strokeLinecap: 'round',
-                    strokeLinejoin: 'round'
-                  }}
-                >
-                  {conn.label}
-                </text>
-              </g>
-            );
+              return (
+                <g key={conn.id}>
+                  <path d={pathData} stroke="transparent" strokeWidth="24" fill="none" className="cursor-pointer pointer-events-auto" onClick={(e) => { e.stopPropagation(); onConnectionClick(conn.id); }} />
+                  
+                  <path 
+                    d={pathData} 
+                    stroke={color} 
+                    strokeWidth={isSelected ? 5 : 3} 
+                    fill="none" 
+                    className={`${getConnectionClass(conn.style)} ${isSelected ? 'selected-jump' : ''}`} 
+                    filter="url(#glow)" 
+                    style={{ 
+                      opacity: isSelected ? 1 : 0.75, 
+                      color,
+                      '--flow-dur': `${flowDur}s`
+                    } as React.CSSProperties} 
+                  />
+
+                  <text
+                    x={labelX}
+                    y={labelY - 8}
+                    textAnchor="middle"
+                    className="text-[9px] font-black fill-slate-300 pointer-events-none uppercase tracking-widest transition-opacity duration-300"
+                    style={{ 
+                      opacity: isSelected ? 1 : 0.6,
+                      paintOrder: 'stroke',
+                      stroke: '#020617',
+                      strokeWidth: '4px',
+                      strokeLinecap: 'round',
+                      strokeLinejoin: 'round'
+                    }}
+                  >
+                    {conn.label}
+                  </text>
+                </g>
+              );
+            });
           })}
         </svg>
 

@@ -1,4 +1,3 @@
-
 import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -9,21 +8,37 @@ interface ConnectionLineProps {
   connection: Connection;
   start: Vector3Array;
   end: Vector3Array;
+  index?: number;
+  totalInGroup?: number;
 }
 
-const ConnectionLine: React.FC<ConnectionLineProps> = ({ connection, start, end }) => {
+const ConnectionLine: React.FC<ConnectionLineProps> = ({ 
+  connection, 
+  start, 
+  end, 
+  index = 0, 
+  totalInGroup = 1 
+}) => {
   const particleRef = useRef<THREE.Mesh>(null);
-  const lineRef = useRef<any>(null);
 
   const startVec = useMemo(() => new THREE.Vector3(start.x, start.y, start.z), [start]);
   const endVec = useMemo(() => new THREE.Vector3(end.x, end.y, end.z), [end]);
   
-  // Create a midpoint for the curve
+  // 3D 偏移逻辑：根据索引调整中点高度
   const mid = useMemo(() => {
     const v = new THREE.Vector3().addVectors(startVec, endVec).multiplyScalar(0.5);
-    v.y += 2; // Curve up
+    
+    // 如果有多条线，通过改变 Y 轴高度来散开
+    if (totalInGroup > 1) {
+      const midPoint = (totalInGroup - 1) / 2;
+      const heightOffset = (index - midPoint) * 1.5; // 每层间隔 1.5 单位
+      v.y += (2 + heightOffset);
+    } else {
+      v.y += 2; // 默认高度
+    }
+    
     return v;
-  }, [startVec, endVec]);
+  }, [startVec, endVec, index, totalInGroup]);
 
   const curve = useMemo(() => {
     return new THREE.QuadraticBezierCurve3(startVec, mid, endVec);
@@ -37,7 +52,6 @@ const ConnectionLine: React.FC<ConnectionLineProps> = ({ connection, start, end 
     }
   });
 
-  // Fix: Use 'any' cast for intrinsic Three.js elements to resolve type errors in JSX
   const Group = 'group' as any;
   const Mesh = 'mesh' as any;
   const SphereGeometry = 'sphereGeometry' as any;
@@ -49,7 +63,7 @@ const ConnectionLine: React.FC<ConnectionLineProps> = ({ connection, start, end 
         start={startVec}
         end={endVec}
         mid={mid}
-        color={connection.trafficLoad > 0.7 ? "#ef4444" : "#38bdf8"}
+        color={connection.status === 'error' ? "#ef4444" : "#38bdf8"}
         lineWidth={1}
         transparent
         opacity={0.4}
@@ -58,7 +72,7 @@ const ConnectionLine: React.FC<ConnectionLineProps> = ({ connection, start, end 
       {/* Dynamic flow particle */}
       <Mesh ref={particleRef}>
         <SphereGeometry args={[0.1, 8, 8]} />
-        <MeshBasicMaterial color="#7dd3fc" />
+        <MeshBasicMaterial color={connection.status === 'error' ? "#ff8888" : "#7dd3fc"} />
       </Mesh>
 
       {/* Connection label at midpoint */}

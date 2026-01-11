@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import ServiceNodeMesh from './ServiceNodeMesh';
@@ -18,6 +17,17 @@ const Scene: React.FC<SceneProps> = ({ nodes, connections, selectedId, onNodeCli
   // Fix: Use 'any' cast for intrinsic Three.js elements to bypass missing JSX definitions
   const Group = 'group' as any;
 
+  // 3D 空间内的连线分组逻辑
+  const connectionGroups = useMemo(() => {
+    const groups: Record<string, Connection[]> = {};
+    connections.forEach(conn => {
+      const pairKey = [conn.sourceId, conn.targetId].sort().join('_');
+      if (!groups[pairKey]) groups[pairKey] = [];
+      groups[pairKey].push(conn);
+    });
+    return groups;
+  }, [connections]);
+
   return (
     <Group>
       {nodes.map((node) => (
@@ -31,21 +41,26 @@ const Scene: React.FC<SceneProps> = ({ nodes, connections, selectedId, onNodeCli
         />
       ))}
       
-      {connections.map((conn) => {
-        const sourceNode = nodes.find(n => n.id === conn.sourceId);
-        const targetNode = nodes.find(n => n.id === conn.targetId);
-        
-        if (!sourceNode || !targetNode) return null;
-        
-        return (
-          <ConnectionLine 
-            key={conn.id} 
-            connection={conn}
-            start={sourceNode.position}
-            end={targetNode.position}
-          />
-        );
-      })}
+      {/* Fix: Explicitly cast Object.entries(connectionGroups) to [string, Connection[]][] to avoid type errors */}
+      {(Object.entries(connectionGroups) as [string, Connection[]][]).map(([pairKey, groupConns]) => (
+        groupConns.map((conn, index) => {
+          const sourceNode = nodes.find(n => n.id === conn.sourceId);
+          const targetNode = nodes.find(n => n.id === conn.targetId);
+          
+          if (!sourceNode || !targetNode) return null;
+          
+          return (
+            <ConnectionLine 
+              key={conn.id} 
+              connection={conn}
+              start={sourceNode.position}
+              end={targetNode.position}
+              index={index}
+              totalInGroup={groupConns.length}
+            />
+          );
+        })
+      ))}
     </Group>
   );
 };
