@@ -6,9 +6,14 @@ import { GoogleGenAI, Type } from "@google/genai";
  * 基于 Google Gemini 3 Pro 深度规划拓扑结构
  */
 
-// FIX: Use process.env.API_KEY directly without fallback as per SDK guidelines
+// 初始化 Gemini AI 客户端 (使用环境变量中的 API_KEY)
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
+/**
+ * 根据用户的自然语言描述，调用 Gemini AI 生成拓扑结构布局
+ * @param description 用户的自然语言描述（例如："一个高可用的电商系统，包含网关、缓存、多个微服务和主从数据库"）
+ * @returns 解析后的 JSON 对象，包含节点 (nodes) 和连线 (connections) 数据
+ */
 export async function suggestLayout(description: string) {
   const response = await ai.models.generateContent({
     model: 'gemini-3-pro-preview',
@@ -23,6 +28,7 @@ export async function suggestLayout(description: string) {
     4. 必须严格返回合法的 JSON 对象。`,
     config: {
       responseMimeType: "application/json",
+      // 定义严格的 JSON Schema 以确保 AI 返回的数据格式符合预期
       responseSchema: {
         type: Type.OBJECT,
         properties: {
@@ -58,6 +64,7 @@ export async function suggestLayout(description: string) {
   });
 
   try {
+    // 解析 AI 返回的 JSON 字符串
     return JSON.parse(response.text || "{\"nodes\":[], \"connections\":[]}");
   } catch (e) {
     console.error("AI 响应 JSON 解析异常:", e);
